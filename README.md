@@ -1,97 +1,156 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 🔥 Ping Mobile App (`Ping`)
 
-# Getting Started
+**Ping** is a high-performance, visually stunning dating and social connection mobile application built with **React Native CLI**, **TypeScript**, and **React 19**.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## 🎨 Design System & Aesthetics
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Ping follows a custom design system centered around vibrant, warm colors, modern typography, glassmorphism card elevation, and smooth touch interactions.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 💖 Color Palette
 
-```sh
-# Using npm
+| Token | Hex Code | Usage |
+| :--- | :--- | :--- |
+| **Magenta (Primary)** | `#E8447A` | Primary buttons, active tabs, brand accents |
+| **Coral (Secondary)** | `#F2865F` | Highlights, gradient transitions, secondary buttons |
+| **Peach (Accent)** | `#F4A47C` | Tags, superlike accents, dynamic badges |
+| **Plum (Dark Text/Bg)** | `#2B1620` | Dark mode background, primary text headers |
+| **Cream (Light Bg)** | `#FBEEE6` | App main background, card backgrounds |
+| **Blush (Muted)** | `#FBDCE6` | Subtle pill backgrounds, light borders |
+
+---
+
+## ✨ Application Features
+
+- 📱 **3-Step Animated Onboarding Flow**
+  - Custom vector illustrations (`OnboardingIllustrations.tsx`)
+  - Feature highlights carousel: *Discover Nearby Matches*, *Real-Time Instant Chat*, *Vibe Check & Match*
+- 🔑 **Authentication Screen**
+  - Dynamic Login & Sign-Up tab toggle
+  - Email/Password form validation with custom input fields (`Input.tsx`)
+  - **Google One-Tap / OAuth Sign-In** integration button
+- 🔥 **Tinder-Style Home Card Stack (`HomeScreen.tsx`)**
+  - Smooth card stack deck (`CardStack.tsx`)
+  - Profile details, location distance, match score badges, bio, interests tags (`Tag.tsx`)
+  - Interactive Action Bar: Pass (❌), Superlike (⭐), Like (💖)
+  - Auto-advance on user swipe/action
+- 📡 **Built-in Network Logger & Axios Client**
+  - Intercepts all outgoing HTTP requests and incoming responses
+  - Console logs formatted with HTTP status, URL, response payload, and request duration
+
+---
+
+## 🛠 Tech Stack
+
+- **Framework:** React Native CLI v0.87.1
+- **UI Library:** React 19.2
+- **Language:** TypeScript v6
+- **Vector Graphics:** `react-native-svg` (Solid-fill vector components for reliable native rendering)
+- **Safe Area:** `react-native-safe-area-context`
+- **HTTP Client:** Axios with custom logger interceptors
+
+---
+
+## 🔑 How Google Authentication Works
+
+Ping uses a **Firebase-Free, Server-Verified Google OAuth Flow**:
+
+```
+[ Mobile App ]                         [ Ping Backend ]                 [ Google OAuth ]
+      |                                        |                               |
+      |--- 1. User taps "Google Sign-In" ------>|                               |
+      |--- 2. @react-native-google-signin ---->|--- Get ID Token ------------->|
+      |                                        |<-- Return Signed ID Token ----|
+      |--- 3. Send POST /api/auth/google ----->|                               |
+      |       { idToken }                      |--- 4. Verify ID Token -------->|
+      |                                        |<-- Valid Google User Profile -|
+      |                                        |--- 5. Issue JWT Access/Refresh|
+      |<-- 6. Return JWT + User Profile -------|
+```
+
+### Steps to enable Google Sign-In:
+
+1. Install Google Sign-In native module:
+   ```bash
+   npm install @react-native-google-signin/google-signin
+   ```
+2. Configure Web Client ID in `App.tsx` or auth service:
+   ```typescript
+   GoogleSignin.configure({
+     webClientId: 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com',
+   });
+   ```
+3. Pass `idToken` from the client to backend `POST /api/auth/google`.
+
+---
+
+## 🏁 Getting Started
+
+### Prerequisites
+
+- Node.js >= 22.11.0
+- JDK 17+
+- Android Studio & Android SDK (for Android builds)
+- Xcode & CocoaPods (for iOS builds, macOS required)
+
+### 1. Installation
+
+```bash
+cd Ping
+npm install
+```
+
+### 2. Run Metro Bundler
+
+```bash
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Build and run your app
+### 3. Launch App on Emulator/Device
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+**Android:**
+```bash
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+**iOS:**
+```bash
+cd ios && pod install && cd ..
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+---
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+## 📂 Project Structure
 
-## Step 3: Modify your app
-
-Now that you have successfully run the app, let's make changes!
-
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
-
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
-
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
-
-## Congratulations! :tada:
-
-You've successfully run and modified your React Native App. :partying_face:
-
-### Now what?
-
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
-
-# Troubleshooting
-
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
-
-# Learn More
-
-To learn more about React Native, take a look at the following resources:
-
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```
+Ping/
+├── App.tsx                        # Root component with SafeAreaProvider & navigation state
+├── index.js                       # Entry point
+├── package.json
+├── tsconfig.json
+└── src/
+    ├── components/                # Reusable UI components
+    │   ├── Button.tsx             # Primary, secondary, outline, text buttons
+    │   ├── Input.tsx              # Text inputs with icon slots & error messages
+    │   ├── Tag.tsx                # Interest pill tags
+    │   ├── Header.tsx             # App top navigation header
+    │   ├── CardStack.tsx          # Swipeable profile deck container
+    │   └── illustrations/         # Custom SVG vector assets
+    │       ├── OnboardingIllustrations.tsx
+    │       └── BrandAssets.tsx
+    ├── screens/                   # Page view screens
+    │   ├── OnboardingScreen.tsx   # 3-page introduction carousel
+    │   ├── AuthScreen.tsx         # Login & Register views
+    │   └── HomeScreen.tsx         # Main Tinder-style card deck
+    ├── services/                  # API client & services
+    │   ├── apiClient.ts           # Axios instance
+    │   └── logger.ts              # Network request/response logger
+    ├── theme/                     # Design system tokens
+    │   ├── colors.ts              # Palette colors
+    │   └── typography.ts          # Font weights & text presets
+    └── types/                     # Shared TypeScript interfaces
+        ├── user.ts                # Profile & match types
+        └── api.ts                 # API response schemas
+```
