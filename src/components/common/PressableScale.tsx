@@ -1,17 +1,10 @@
 import React from 'react';
-import { Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
+import { Pressable, PressableProps, StyleProp, ViewStyle, Vibration } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-
-let Haptics: any = null;
-try {
-  Haptics = require('expo-haptics');
-} catch (e) {
-  // Graceful fallback if expo-haptics is not available
-}
 
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
   style?: StyleProp<ViewStyle>;
@@ -46,9 +39,9 @@ export const PressableScale: React.FC<PressableScaleProps> = ({
       mass: 0.5,
     });
 
-    if (enableHaptics && Haptics?.impactAsync) {
+    if (enableHaptics) {
       try {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        Vibration.vibrate(10);
       } catch (_) {}
     }
 

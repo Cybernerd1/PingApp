@@ -15,6 +15,7 @@ import { Header } from '../components/Header';
 import { CardStack, CandidateProfile } from '../components/CardStack';
 import { MascotEmptyStateSVG } from '../components/illustrations/BrandAssets';
 import { Button } from '../components/Button';
+import { MatchModal } from '../components/modals/MatchModal';
 import apiClient from '../services/apiClient';
 
 // Mock high-quality dating candidate profiles matching Ping design standards
@@ -169,56 +170,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
           )}
         </View>
 
-        {/* Match Modal Banner */}
-        <Modal
+        {/* Animated Reanimated Match Modal */}
+        <MatchModal
           visible={matchModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setMatchModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.matchCard}>
-              <Text style={styles.matchHeader}>It is a Match! 🎉</Text>
-              <Text style={styles.matchSub}>
-                You and {matchedCandidate?.username} liked each other!
-              </Text>
-
-              {matchedCandidate && (
-                <View style={styles.matchAvatarRow}>
-                  <Image
-                    source={{
-                      uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-                    }}
-                    style={styles.avatarLeft}
-                  />
-                  <View style={styles.pingBadge}>
-                    <Text style={{ fontSize: 20 }}>⚡</Text>
-                  </View>
-                  <Image
-                    source={{ uri: matchedCandidate.photos[0] }}
-                    style={styles.avatarRight}
-                  />
-                </View>
-              )}
-
-              <Button
-                title="Send a Ping 💬"
-                onPress={() => {
-                  setMatchModalVisible(false);
-                  if (onOpenChat) onOpenChat();
-                }}
-                style={styles.modalBtnPrimary}
-              />
-
-              <Button
-                title="Keep Swiping"
-                variant="secondary"
-                onPress={() => setMatchModalVisible(false)}
-                style={styles.modalBtnSecondary}
-              />
-            </View>
-          </View>
-        </Modal>
+          matchAvatar={matchedCandidate?.photos?.[0]}
+          matchName={matchedCandidate?.username}
+          onSendMessage={() => {
+            setMatchModalVisible(false);
+            if (onOpenChat) onOpenChat();
+          }}
+          onKeepSwiping={() => setMatchModalVisible(false)}
+        />
       </View>
     </SafeAreaView>
   );

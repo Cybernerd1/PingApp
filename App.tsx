@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StatusBar, StyleSheet, View, Alert } from 'react-native';
+import { StatusBar, StyleSheet, Alert } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from './src/theme/colors';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
@@ -30,8 +31,8 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaProvider>
-      <View style={styles.container}>
+    <GestureHandlerRootView style={styles.container}>
+      <SafeAreaProvider>
         <StatusBar barStyle="dark-content" />
 
         {currentStep === 'onboarding' && (
@@ -45,8 +46,8 @@ function App(): React.JSX.Element {
         {currentStep === 'home' && (
           <HomeScreen onOpenChat={handleOpenChat} />
         )}
-      </View>
-    </SafeAreaProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
