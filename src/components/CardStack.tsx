@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,23 +26,40 @@ export interface CandidateProfile {
   photos: string[];
   distanceKm: number;
   jobTitle?: string;
+  location?: string;
+  height?: string;
+  education?: string;
+  hometown?: string;
+  zodiac?: string;
+  lookingFor?: string;
+  prompts?: { question: string; answer: string }[];
+  spotifyTrack?: { name: string; track: string; image: string };
 }
 
 interface CardStackProps {
   candidates: CandidateProfile[];
   onSwipe: (action: 'like' | 'pass' | 'superlike', candidate: CandidateProfile) => void;
   onEmpty: () => void;
+  onExpandProfile?: (candidate: CandidateProfile) => void;
 }
 
 export const CardStack: React.FC<CardStackProps> = ({
   candidates,
   onSwipe,
   onEmpty,
+  onExpandProfile,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [photoIndices, setPhotoIndices] = useState<Record<string, number>>({});
 
   const position = useRef(new Animated.ValueXY()).current;
+  const candidatesRef = useRef(candidates);
+  const currentIndexRef = useRef(currentIndex);
+
+  useEffect(() => {
+    candidatesRef.current = candidates;
+    currentIndexRef.current = currentIndex;
+  }, [candidates, currentIndex]);
 
   // Rotation based on horizontal drag
   const rotate = position.x.interpolate({
@@ -78,12 +95,19 @@ export const CardStack: React.FC<CardStackProps> = ({
         position.setValue({ x: gestureState.dx, y: gestureState.dy });
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx > SWIPE_THRESHOLD) {
+        const isUpwardSwipe =
+          gestureState.dy < -70 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx);
+
+        if (isUpwardSwipe) {
+          resetPosition();
+          const activeCand = candidatesRef.current[currentIndexRef.current];
+          if (activeCand && onExpandProfile) {
+            onExpandProfile(activeCand);
+          }
+        } else if (gestureState.dx > SWIPE_THRESHOLD) {
           forceSwipe('right');
         } else if (gestureState.dx < -SWIPE_THRESHOLD) {
           forceSwipe('left');
-        } else if (gestureState.dy < -SWIPE_THRESHOLD) {
-          forceSwipe('up');
         } else {
           resetPosition();
         }
@@ -240,8 +264,19 @@ export const CardStack: React.FC<CardStackProps> = ({
                   {currentCandidate.username},{' '}
                   <Text style={styles.ageText}>{currentCandidate.age}</Text>
                 </Text>
-                <View style={styles.distanceBadge}>
-                  <Text style={styles.distanceText}>📍 {currentCandidate.distanceKm} km</Text>
+                <View style={styles.headerRightBadgeGroup}>
+                  <View style={styles.distanceBadge}>
+                    <Text style={styles.distanceText}>📍 {currentCandidate.distanceKm} km</Text>
+                  </View>
+                  {onExpandProfile && (
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => onExpandProfile(currentCandidate)}
+                      style={styles.infoButton}
+                    >
+                      <Text style={styles.infoButtonText}>ℹ</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
 
@@ -464,5 +499,25 @@ const styles = StyleSheet.create({
   },
   btnIcon: {
     fontSize: 24,
+  },
+  headerRightBadgeGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  infoButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+  },
+  infoButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

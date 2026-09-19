@@ -3,73 +3,150 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
-  Image,
   ActivityIndicator,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
-import { Typography, Radius } from '../theme/typography';
+import { Typography } from '../theme/typography';
 import { Header } from '../components/Header';
 import { CardStack, CandidateProfile } from '../components/CardStack';
 import { MascotEmptyStateSVG } from '../components/illustrations/BrandAssets';
 import { Button } from '../components/Button';
 import { MatchModal } from '../components/modals/MatchModal';
+import { FullProfileModal } from '../components/modals/FullProfileModal';
 import apiClient from '../services/apiClient';
 
-// Mock high-quality dating candidate profiles matching Ping design standards
+// Rich dating candidate profiles matching Ping design standards
 const MOCK_CANDIDATES: CandidateProfile[] = [
   {
     id: 'cand_1',
     username: 'Sophia',
     age: 23,
     jobTitle: 'UX Designer & Coffee Enthusiast',
-    bio: 'Looking for someone to explore hidden coffee spots, talk about design, and go on weekend road trips! ☕✨',
-    interests: ['🎨 Design', '☕ Coffee', '📷 Photography', '✈️ Travel'],
+    bio: 'Looking for someone to explore hidden coffee spots, talk about design, and go on weekend road trips! ☕✨ Always up for spontaneous museum dates or tasting local food markets.',
+    interests: ['🎨 Design', '☕ Coffee', '📷 Photography', '✈️ Travel', '🎧 Electronic'],
     photos: [
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
     ],
     distanceKm: 2.8,
+    location: 'Downtown, SF',
+    height: "5'6\" (168 cm)",
+    zodiac: '♌ Leo',
+    education: 'Stanford University',
+    hometown: 'San Francisco, CA',
+    lookingFor: '💖 Long-term relationship',
+    prompts: [
+      {
+        question: 'My simple pleasures...',
+        answer: 'Hot pour-over espresso on crisp autumn mornings and finding rare vinyl records.',
+      },
+      {
+        question: 'Together, we could...',
+        answer: 'Cook an ambitious Italian dinner, debate interface design, and plan a weekend getaway.',
+      },
+    ],
+    spotifyTrack: {
+      name: 'Fred again..',
+      track: 'Adore U',
+      image: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=300&q=80',
+    },
   },
   {
     id: 'cand_2',
     username: 'Liam',
     age: 26,
     jobTitle: 'Software Engineer & Indie Musician',
-    bio: 'Code by day, play acoustic guitar by night. Let us make a killer playlist together 🎸',
-    interests: ['🎸 Guitar', '💻 Coding', '🎧 Indie Rock', '🍕 Pizza'],
+    bio: 'Code by day, play acoustic guitar by night. Let us make a killer playlist together 🎸 Big fan of vinyl records, ramen nights, and coastal hikes.',
+    interests: ['🎸 Guitar', '💻 Coding', '🎧 Indie Rock', '🍕 Pizza', '🐕 Dogs'],
     photos: [
       'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=800&q=80',
     ],
     distanceKm: 4.5,
+    location: 'Mission District, SF',
+    height: "6'1\" (185 cm)",
+    zodiac: '♊ Gemini',
+    education: 'UC Berkeley',
+    hometown: 'Seattle, WA',
+    lookingFor: '🥂 Casual & fun dates',
+    prompts: [
+      {
+        question: 'Two truths and a lie...',
+        answer: 'I play 4 instruments, I have climbed Mt. Rainier, I hate avocado toast.',
+      },
+      {
+        question: 'My ideal Sunday...',
+        answer: 'Farmer market stroll, jamming on the porch, and baking sourdough pizza.',
+      },
+    ],
+    spotifyTrack: {
+      name: 'The 1975',
+      track: 'About You',
+      image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=300&q=80',
+    },
   },
   {
     id: 'cand_3',
     username: 'Maya',
     age: 24,
     jobTitle: 'Architect & Potter',
-    bio: 'Passionate about sustainable architecture and ceramics. Big fan of sunset walks and deep conversations.',
-    interests: ['🏺 Pottery', '🏛️ Architecture', '🌿 Plants', '🍷 Wine'],
+    bio: 'Passionate about sustainable architecture and ceramics. Big fan of sunset walks, botanical gardens, and deep late-night conversations.',
+    interests: ['🏺 Pottery', '🏛️ Architecture', '🌿 Plants', '🍷 Wine', '🎨 Fine Arts'],
     photos: [
       'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=800&q=80',
     ],
     distanceKm: 1.2,
+    location: 'Marina, SF',
+    height: "5'7\" (170 cm)",
+    zodiac: '♎ Libra',
+    education: 'Cornell AAP',
+    hometown: 'Portland, OR',
+    lookingFor: '✨ Someone who loves creativity',
+    prompts: [
+      {
+        question: 'I take pride in...',
+        answer: 'Hand-throwing all the coffee mugs in my studio and building green rooftops.',
+      },
+    ],
+    spotifyTrack: {
+      name: 'Leon Bridges',
+      track: 'Texas Sun',
+      image: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=300&q=80',
+    },
   },
   {
     id: 'cand_4',
     username: 'Ethan',
     age: 25,
     jobTitle: 'Fitness Coach & Hiker',
-    bio: 'Early morning runner, bouldering lover, and amateur chef. Let us cook something awesome!',
-    interests: ['🏃 Running', '🧗 Bouldering', '🍳 Cooking', '🐕 Dogs'],
+    bio: 'Early morning runner, bouldering lover, and amateur chef. Let us cook something awesome after a summit hike!',
+    interests: ['🏃 Running', '🧗 Bouldering', '🍳 Cooking', '🐕 Dogs', '🏞️ Trail Running'],
     photos: [
       'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=800&q=80',
     ],
     distanceKm: 3.1,
+    location: 'Pacific Heights, SF',
+    height: "6'0\" (183 cm)",
+    zodiac: '♐ Sagittarius',
+    education: 'UCLA',
+    hometown: 'Denver, CO',
+    lookingFor: '⛰️ Adventure buddy',
+    prompts: [
+      {
+        question: 'First round is on me if...',
+        answer: 'You can out-climb me at the boulder gym or teach me a secret pasta recipe.',
+      },
+    ],
+    spotifyTrack: {
+      name: 'Odesza',
+      track: 'A Moment Apart',
+      image: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=300&q=80',
+    },
   },
 ];
 
@@ -82,6 +159,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
   const [loading, setLoading] = useState(true);
   const [matchModalVisible, setMatchModalVisible] = useState(false);
   const [matchedCandidate, setMatchedCandidate] = useState<CandidateProfile | null>(null);
+  const [expandedCandidate, setExpandedCandidate] = useState<CandidateProfile | null>(null);
 
   const fetchDiscoveryStack = async () => {
     setLoading(true);
@@ -153,6 +231,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
               candidates={candidates}
               onSwipe={handleSwipe}
               onEmpty={() => setCandidates([])}
+              onExpandProfile={(candidate) => setExpandedCandidate(candidate)}
             />
           ) : (
             <View style={styles.emptyContainer}>
@@ -180,6 +259,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
             if (onOpenChat) onOpenChat();
           }}
           onKeepSwiping={() => setMatchModalVisible(false)}
+        />
+
+        {/* Expanded Full Candidate Profile Modal */}
+        <FullProfileModal
+          visible={!!expandedCandidate}
+          candidate={expandedCandidate}
+          onClose={() => setExpandedCandidate(null)}
+          onLike={(cand) => {
+            handleSwipe('like', cand);
+            setCandidates((prev) => prev.filter((c) => c.id !== cand.id));
+          }}
+          onPass={(cand) => {
+            handleSwipe('pass', cand);
+            setCandidates((prev) => prev.filter((c) => c.id !== cand.id));
+          }}
+          onSuperLike={(cand) => {
+            handleSwipe('superlike', cand);
+            setCandidates((prev) => prev.filter((c) => c.id !== cand.id));
+          }}
         />
       </View>
     </SafeAreaView>
@@ -231,75 +329,6 @@ const styles = StyleSheet.create({
   },
   refreshButton: {
     marginTop: 24,
-    width: '100%',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(43, 22, 32, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  matchCard: {
-    width: '100%',
-    backgroundColor: Colors.white,
-    borderRadius: Radius.largeCard,
-    padding: 28,
-    alignItems: 'center',
-  },
-  matchHeader: {
-    ...Typography.display,
-    color: Colors.magenta,
-    fontSize: 32,
-    textAlign: 'center',
-  },
-  matchSub: {
-    ...Typography.body,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    marginTop: 6,
-    fontSize: 15,
-  },
-  matchAvatarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-  },
-  avatarLeft: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: Colors.magenta,
-  },
-  avatarRight: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: Colors.coral,
-    marginLeft: -20,
-  },
-  pingBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: -10,
-    zIndex: 10,
-    shadowColor: Colors.plum,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  modalBtnPrimary: {
-    width: '100%',
-    marginBottom: 12,
-  },
-  modalBtnSecondary: {
     width: '100%',
   },
 });

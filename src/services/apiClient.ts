@@ -7,7 +7,7 @@ export const BASE_URL = 'http://10.0.2.2:5000/api';
 // Create Axios Instance
 export const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 4000,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
