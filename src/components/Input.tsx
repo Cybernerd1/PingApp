@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Colors } from '../theme/colors';
 import { Radius, Typography } from '../theme/typography';
+import { EyeOpenIcon, EyeClosedIcon } from './illustrations/Icons';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -51,7 +52,11 @@ export const Input: React.FC<InputProps> = ({
             onPress={() => setShowPassword(!showPassword)}
             style={styles.eyeButton}
           >
-            <Text style={styles.eyeText}>{showPassword ? '👁️' : '🙈'}</Text>
+            {showPassword ? (
+              <EyeOpenIcon size={20} color={Colors.textMuted} />
+            ) : (
+              <EyeClosedIcon size={20} color={Colors.textMuted} />
+            )}
           </TouchableOpacity>
         ) : null}
       </View>
@@ -86,7 +91,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   errorContainer: {
-    borderColor: Colors.passRed,
+    borderColor: Colors.danger,
   },
   input: {
     flex: 1,
@@ -97,12 +102,9 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: 6,
   },
-  eyeText: {
-    fontSize: 16,
-  },
   errorText: {
     ...Typography.caption,
-    color: Colors.passRed,
+    color: Colors.danger,
     marginTop: 4,
   },
 });

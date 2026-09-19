@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LogoMark } from './illustrations/BrandAssets';
+import { BellIcon } from './illustrations/Icons';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 
@@ -28,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
           onPress={onNotificationPress}
           style={styles.notificationBtn}
         >
-          <Text style={styles.bellIcon}>🔔</Text>
+          <BellIcon size={20} color={Colors.plum} />
           {unreadCount > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
@@ -82,9 +83,6 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
     position: 'relative',
-  },
-  bellIcon: {
-    fontSize: 20,
   },
   badge: {
     position: 'absolute',

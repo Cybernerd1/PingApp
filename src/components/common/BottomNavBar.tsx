@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { Typography, Radius } from '../../theme/typography';
+import { HomeIcon, ChatBubbleIcon, UserIcon } from '../illustrations/Icons';
 
 export type MainTabType = 'home' | 'chat' | 'profile';
 
@@ -25,9 +26,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onPress={() => onTabSelect('home')}
           style={[styles.tabButton, activeTab === 'home' && styles.activeTabButton]}
         >
-          <Text style={[styles.tabIcon, activeTab === 'home' && styles.activeTabIcon]}>
-            🔥
-          </Text>
+          <HomeIcon size={20} color={activeTab === 'home' ? Colors.magenta : Colors.textMuted} />
           <Text style={[styles.tabLabel, activeTab === 'home' && styles.activeTabLabel]}>
             Home
           </Text>
@@ -40,9 +39,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           style={[styles.tabButton, activeTab === 'chat' && styles.activeTabButton]}
         >
           <View style={styles.iconWrapper}>
-            <Text style={[styles.tabIcon, activeTab === 'chat' && styles.activeTabIcon]}>
-              💬
-            </Text>
+            <ChatBubbleIcon size={20} color={activeTab === 'chat' ? Colors.magenta : Colors.textMuted} />
             {unreadChatCount > 0 && activeTab !== 'chat' && (
               <View style={styles.chatBadge}>
                 <Text style={styles.chatBadgeText}>{unreadChatCount}</Text>
@@ -60,9 +57,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
           onPress={() => onTabSelect('profile')}
           style={[styles.tabButton, activeTab === 'profile' && styles.activeTabButton]}
         >
-          <Text style={[styles.tabIcon, activeTab === 'profile' && styles.activeTabIcon]}>
-            👤
-          </Text>
+          <UserIcon size={20} color={activeTab === 'profile' ? Colors.magenta : Colors.textMuted} />
           <Text style={[styles.tabLabel, activeTab === 'profile' && styles.activeTabLabel]}>
             Profile
           </Text>
@@ -110,13 +105,6 @@ const styles = StyleSheet.create({
   },
   iconWrapper: {
     position: 'relative',
-  },
-  tabIcon: {
-    fontSize: 20,
-    opacity: 0.6,
-  },
-  activeTabIcon: {
-    opacity: 1,
   },
   tabLabel: {
     ...Typography.body,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { StatusBar, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from './src/theme/colors';
@@ -18,8 +18,9 @@ import {
   getFCMToken,
   onForegroundMessage,
 } from './src/services/fcmService';
+import { checkInitialSession, signOutAll } from './src/services/authService';
 
-export type AppStep = 'onboarding' | 'auth' | 'main';
+export type AppStep = 'loading' | 'onboarding' | 'auth' | 'main';
 
 // Register background message handler immediately on app boot
 setupFCMBackgroundHandler();
@@ -54,7 +55,7 @@ const INITIAL_NOTIFICATIONS: NotificationItem[] = [
 ];
 
 function App(): React.JSX.Element {
-  const [currentStep, setCurrentStep] = useState<AppStep>('onboarding');
+  const [currentStep, setCurrentStep] = useState<AppStep>('loading');
   const [activeTab, setActiveTab] = useState<MainTabType>('home');
   const [currentUser, setCurrentUser] = useState<any>(null);
 
@@ -64,7 +65,21 @@ function App(): React.JSX.Element {
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
 
   useEffect(() => {
-    // Setup FCM Push Notification permissions & foreground listener
+    // 1. Initial Session Check from Keychain & Backend /users/me
+    checkInitialSession().then((session) => {
+      if (session.authenticated && session.user) {
+        setCurrentUser(session.user);
+        if (session.onboardingComplete) {
+          setCurrentStep('main');
+        } else {
+          setCurrentStep('onboarding');
+        }
+      } else {
+        setCurrentStep('auth');
+      }
+    });
+
+    // 2. Setup FCM Push Notification permissions & foreground listener
     requestNotificationPermission().then(() => {
       getFCMToken();
     });
@@ -95,12 +110,16 @@ function App(): React.JSX.Element {
   }, []);
 
   const handleOnboardingComplete = () => {
-    setCurrentStep('auth');
+    setCurrentStep('main');
   };
 
   const handleAuthSuccess = (userData: any) => {
     setCurrentUser(userData);
-    setCurrentStep('main');
+    if (userData.onboardingComplete) {
+      setCurrentStep('main');
+    } else {
+      setCurrentStep('onboarding');
+    }
 
     // Trigger welcoming FCM notification toast
     setTimeout(() => {
@@ -112,7 +131,8 @@ function App(): React.JSX.Element {
     }, 800);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOutAll();
     setCurrentUser(null);
     setCurrentStep('auth');
     setActiveTab('home');
@@ -127,6 +147,12 @@ function App(): React.JSX.Element {
 
         {/* Global Notification Toast */}
         <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
+
+        {currentStep === 'loading' && (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.magenta} />
+          </View>
+        )}
 
         {currentStep === 'onboarding' && (
           <OnboardingScreen onComplete={handleOnboardingComplete} />
@@ -193,6 +219,12 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.cream,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.cream,
   },
   safeArea: {

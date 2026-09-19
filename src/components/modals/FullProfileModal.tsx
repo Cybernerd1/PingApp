@@ -8,9 +8,9 @@ import {
   ScrollView,
   Dimensions,
   TouchableOpacity,
-  SafeAreaView,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -20,7 +20,6 @@ import Animated, {
 import { Colors } from '../../theme/colors';
 import { Typography, Radius } from '../../theme/typography';
 import { CandidateProfile } from '../CardStack';
-import { Tag } from '../Tag';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -67,16 +66,17 @@ export const FullProfileModal: React.FC<FullProfileModalProps> = ({
     ? candidate.photos
     : ['https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800'];
 
-  const prompts = candidate.prompts || [
-    {
-      question: 'My simple pleasures...',
-      answer: 'Hot espresso on crisp mornings, discovering hidden vinyl shops, and long drives.',
-    },
-    {
-      question: 'Together, we could...',
-      answer: 'Cook an ambitious Italian dinner, debate design, and travel somewhere unplanned.',
-    },
+  const fallbackInterests = [
+    'Urban Hiking',
+    'Generative Art',
+    'Indie Espresso',
+    'Vaporwave Architecture',
+    'Deep Tech',
   ];
+
+  const displayInterests = candidate.interests && candidate.interests.length > 0
+    ? candidate.interests
+    : fallbackInterests;
 
   return (
     <Modal
@@ -88,22 +88,16 @@ export const FullProfileModal: React.FC<FullProfileModalProps> = ({
       <StatusBar barStyle="dark-content" />
       <Animated.View style={[styles.modalOverlay, animatedContainer]}>
         <SafeAreaView style={styles.safeArea}>
-          {/* Top Floating Close Button */}
-          <View style={styles.topHeaderBar}>
+          {/* Top Back Navigation Bar matching reference design */}
+          <View style={styles.topNavHeader}>
             <TouchableOpacity
-              activeOpacity={0.8}
+              activeOpacity={0.7}
               onPress={onClose}
-              style={styles.closeCircleBtn}
+              style={styles.backButtonRow}
             >
-              <Text style={styles.closeBtnIcon}>↓</Text>
+              <Text style={styles.backArrow}>‹</Text>
+              <Text style={styles.backHeaderName}>{candidate.username}</Text>
             </TouchableOpacity>
-
-            <View style={styles.headerTitleContainer}>
-              <Text style={styles.headerTitleName}>{candidate.username}</Text>
-              <Text style={styles.headerTitleSub}>Swipe down to close</Text>
-            </View>
-
-            <View style={{ width: 42 }} />
           </View>
 
           <ScrollView
@@ -111,189 +105,115 @@ export const FullProfileModal: React.FC<FullProfileModalProps> = ({
             contentContainerStyle={styles.scrollContent}
             bounces={true}
           >
-            {/* Main Hero Photo Gallery */}
-            <View style={styles.heroGalleryContainer}>
+            {/* Hero Profile Photo Card */}
+            <View style={styles.heroCardContainer}>
               <Image
                 source={{ uri: photos[activePhotoIdx] }}
                 style={styles.heroImage}
               />
-              <View style={styles.imageDarkGradient} />
+              <View style={styles.heroGradient} />
 
-              {/* Photo Pagination Indicators */}
+              {/* Multi-Photo Dots */}
               {photos.length > 1 && (
-                <View style={styles.paginationRow}>
+                <View style={styles.photoDotsRow}>
                   {photos.map((_, i) => (
                     <TouchableOpacity
                       key={i}
                       activeOpacity={0.8}
                       onPress={() => setActivePhotoIdx(i)}
                       style={[
-                        styles.paginationDot,
-                        i === activePhotoIdx && styles.paginationDotActive,
+                        styles.photoDot,
+                        i === activePhotoIdx && styles.photoDotActive,
                       ]}
                     />
                   ))}
                 </View>
               )}
 
-              {/* Overlay Hero Text */}
-              <View style={styles.heroTextOverlay}>
-                <View style={styles.nameRow}>
-                  <Text style={styles.heroName}>{candidate.username}</Text>
-                  <Text style={styles.heroAge}>, {candidate.age}</Text>
-                  <Text style={styles.verifiedBadge}> ✓</Text>
-                </View>
-
-                <View style={styles.heroSubRow}>
-                  {candidate.jobTitle ? (
-                    <Text style={styles.heroJob}>💼 {candidate.jobTitle}</Text>
-                  ) : null}
-                  <Text style={styles.heroDistance}>📍 {candidate.distanceKm} km away</Text>
-                </View>
+              {/* Bottom Left Hero Overlay Text */}
+              <View style={styles.heroOverlayText}>
+                <Text style={styles.heroTitle}>
+                  {candidate.username},{candidate.age}
+                </Text>
+                <Text style={styles.heroSubtitle}>
+                  {candidate.jobTitle || 'Product Manager @Stripe'}
+                </Text>
               </View>
             </View>
 
-            {/* Quick Basics Pills Container */}
+            {/* About Section */}
             <View style={styles.sectionContainer}>
-              <Text style={styles.sectionHeading}>Basics</Text>
-              <View style={styles.basicsGrid}>
-                {candidate.location ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>📍 {candidate.location}</Text>
-                  </View>
-                ) : null}
-
-                {candidate.height ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>📏 {candidate.height}</Text>
-                  </View>
-                ) : null}
-
-                {candidate.zodiac ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>✨ {candidate.zodiac}</Text>
-                  </View>
-                ) : null}
-
-                {candidate.education ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>🎓 {candidate.education}</Text>
-                  </View>
-                ) : null}
-
-                {candidate.hometown ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>🏡 From {candidate.hometown}</Text>
-                  </View>
-                ) : null}
-
-                {candidate.lookingFor ? (
-                  <View style={styles.basicPill}>
-                    <Text style={styles.basicPillText}>💘 {candidate.lookingFor}</Text>
-                  </View>
-                ) : null}
-              </View>
+              <Text style={styles.sectionTitleCoral}>About</Text>
+              <Text style={styles.aboutBodyText}>
+                {candidate.bio ||
+                  'Night owl who loves exploring hidden coffee shops and street art. Always up for a spontaneous adventure or deep conversation over pour-over coffee.'}
+              </Text>
             </View>
 
-            {/* About Me / Bio Card */}
-            <View style={styles.cardSection}>
-              <Text style={styles.sectionHeading}>About Me</Text>
-              <Text style={styles.bioBody}>{candidate.bio}</Text>
-            </View>
-
-            {/* Passions & Interests */}
-            {candidate.interests && candidate.interests.length > 0 && (
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionHeading}>Interests & Passions</Text>
-                <View style={styles.tagsFlexRow}>
-                  {candidate.interests.map((interest, idx) => (
-                    <Tag key={idx} label={interest} />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Prompts Cards */}
-            {prompts.map((p, idx) => (
-              <View key={idx} style={styles.promptCard}>
-                <Text style={styles.promptQuestion}>{p.question}</Text>
-                <Text style={styles.promptAnswer}>{p.answer}</Text>
-              </View>
-            ))}
-
-            {/* Spotify / Music Anthem Feature Card */}
-            {candidate.spotifyTrack && (
-              <View style={styles.spotifyCard}>
-                <View style={styles.spotifyHeaderRow}>
-                  <Text style={styles.spotifyBadgeText}>🎵 My Anthem</Text>
-                  <Text style={styles.spotifyLogoText}>Spotify</Text>
-                </View>
-                <View style={styles.spotifyTrackRow}>
-                  <Image
-                    source={{ uri: candidate.spotifyTrack.image }}
-                    style={styles.albumArt}
-                  />
-                  <View style={styles.trackMeta}>
-                    <Text style={styles.trackTitle}>{candidate.spotifyTrack.track}</Text>
-                    <Text style={styles.trackArtist}>{candidate.spotifyTrack.name}</Text>
+            {/* Interests Section */}
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitleCoral}>Interests</Text>
+              <View style={styles.interestsPillsRow}>
+                {displayInterests.map((interest, idx) => (
+                  <View key={idx} style={styles.interestPill}>
+                    <Text style={styles.interestPillText}>{interest}</Text>
                   </View>
-                </View>
-              </View>
-            )}
-
-            {/* Additional Photo Gallery Grid */}
-            {photos.length > 1 && (
-              <View style={styles.sectionContainer}>
-                <Text style={styles.sectionHeading}>Gallery</Text>
-                {photos.slice(1).map((photoUrl, idx) => (
-                  <Image
-                    key={idx}
-                    source={{ uri: photoUrl }}
-                    style={styles.galleryFullPhoto}
-                  />
                 ))}
               </View>
-            )}
+            </View>
 
-            {/* Spacer for Floating Action Footer */}
-            <View style={{ height: 110 }} />
+            {/* Primary Action Button: Konnect / Ping */}
+            <View style={styles.actionButtonContainer}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                onPress={() => {
+                  onClose();
+                  onLike(candidate);
+                }}
+                style={styles.konnectPrimaryBtn}
+              >
+                <Text style={styles.konnectBtnText}>Konnect</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick Action Floating Controls */}
+            <View style={styles.quickActionRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  onClose();
+                  onPass(candidate);
+                }}
+                style={[styles.quickCircleBtn, styles.passCircle]}
+              >
+                <Text style={styles.actionIcon}>✖</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  onClose();
+                  onSuperLike(candidate);
+                }}
+                style={[styles.quickCircleBtn, styles.superCircle]}
+              >
+                <Text style={styles.actionIcon}>⭐</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  onClose();
+                  onLike(candidate);
+                }}
+                style={[styles.quickCircleBtn, styles.likeCircle]}
+              >
+                <Text style={styles.actionIcon}>❤️</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ height: 40 }} />
           </ScrollView>
-
-          {/* Sticky Bottom Action Buttons */}
-          <View style={styles.stickyFooterBar}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => {
-                onClose();
-                onPass(candidate);
-              }}
-              style={[styles.actionCircleBtn, styles.passBtn]}
-            >
-              <Text style={styles.actionIcon}>✖</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => {
-                onClose();
-                onSuperLike(candidate);
-              }}
-              style={[styles.actionCircleBtn, styles.superBtn]}
-            >
-              <Text style={styles.actionIcon}>⭐</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => {
-                onClose();
-                onLike(candidate);
-              }}
-              style={[styles.actionCircleBtn, styles.likeBtn]}
-            >
-              <Text style={styles.actionIcon}>❤️</Text>
-            </TouchableOpacity>
-          </View>
         </SafeAreaView>
       </Animated.View>
     </Modal>
@@ -303,78 +223,59 @@ export const FullProfileModal: React.FC<FullProfileModalProps> = ({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: Colors.cream,
+    backgroundColor: '#FDF7F4',
   },
   safeArea: {
     flex: 1,
   },
-  topHeaderBar: {
+  topNavHeader: {
+    height: 54,
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    backgroundColor: '#FDF7F4',
+  },
+  backButtonRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: Colors.cream,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.06)',
-    zIndex: 20,
+    gap: 8,
   },
-  closeCircleBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.plum,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+  backArrow: {
+    fontSize: 32,
+    color: '#D94D26',
+    fontWeight: '300',
+    marginTop: -4,
   },
-  closeBtnIcon: {
-    fontSize: 22,
-    color: Colors.plum,
-    fontWeight: '800',
-  },
-  headerTitleContainer: {
-    alignItems: 'center',
-  },
-  headerTitleName: {
+  backHeaderName: {
     ...Typography.heading,
-    fontSize: 18,
-    color: Colors.plum,
-  },
-  headerTitleSub: {
-    ...Typography.caption,
-    fontSize: 12,
-    color: Colors.textMuted,
+    fontSize: 22,
+    color: '#D94D26',
+    fontWeight: '700',
   },
   scrollContent: {
     paddingBottom: 20,
   },
-  heroGalleryContainer: {
+  heroCardContainer: {
     width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.58,
+    height: SCREEN_HEIGHT * 0.52,
     position: 'relative',
-    backgroundColor: '#000000',
+    backgroundColor: '#1E1017',
   },
   heroImage: {
     width: '100%',
     height: '100%',
     resizeMode: 'cover',
   },
-  imageDarkGradient: {
+  heroGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 200,
-    backgroundColor: 'rgba(43, 22, 32, 0.75)',
+    height: 180,
+    backgroundColor: 'rgba(30, 16, 23, 0.65)',
   },
-  paginationRow: {
+  photoDotsRow: {
     position: 'absolute',
-    top: 16,
+    top: 14,
     left: 16,
     right: 16,
     flexDirection: 'row',
@@ -382,233 +283,241 @@ const styles = StyleSheet.create({
     gap: 6,
     zIndex: 10,
   },
-  paginationDot: {
+  photoDot: {
     flex: 1,
-    height: 4,
+    height: 3,
     borderRadius: 2,
     backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
-  paginationDotActive: {
+  photoDotActive: {
     backgroundColor: Colors.white,
   },
-  heroTextOverlay: {
+  heroOverlayText: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 24,
     left: 20,
     right: 20,
   },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-  },
-  heroName: {
-    ...Typography.heading,
-    fontSize: 32,
-    color: Colors.white,
-    fontWeight: '800',
-  },
-  heroAge: {
+  heroTitle: {
     ...Typography.heading,
     fontSize: 28,
     color: Colors.white,
-    fontWeight: '400',
-  },
-  verifiedBadge: {
-    fontSize: 22,
-    color: '#3897F0',
     fontWeight: '800',
   },
-  heroSubRow: {
-    marginTop: 6,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  heroJob: {
+  heroSubtitle: {
     ...Typography.body,
     fontSize: 15,
-    color: Colors.blush,
-  },
-  heroDistance: {
-    ...Typography.caption,
-    fontSize: 14,
-    color: Colors.white,
-    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2,
   },
   sectionContainer: {
     paddingHorizontal: 20,
     marginTop: 24,
   },
-  sectionHeading: {
+  sectionTitleCoral: {
     ...Typography.heading,
     fontSize: 18,
-    color: Colors.plum,
-    marginBottom: 12,
+    color: '#D94D26',
+    fontWeight: '700',
+    marginBottom: 10,
   },
-  basicsGrid: {
+  aboutBodyText: {
+    ...Typography.body,
+    fontSize: 15,
+    color: '#4A3E39',
+    lineHeight: 22,
+  },
+  compatibilityCard: {
+    marginHorizontal: 20,
+    marginTop: 24,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 77, 38, 0.08)',
+    shadowColor: Colors.plum,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  compatHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  compatTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compatIcon: {
+    fontSize: 18,
+  },
+  compatHeadingText: {
+    ...Typography.heading,
+    fontSize: 16,
+    color: '#D94D26',
+    fontWeight: '700',
+  },
+  compatScoreBadge: {
+    backgroundColor: '#FDEAE4',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: Radius.pill,
+  },
+  compatScoreText: {
+    ...Typography.caption,
+    fontSize: 13,
+    color: '#D94D26',
+    fontWeight: '800',
+  },
+  progressItem: {
+    marginBottom: 14,
+  },
+  progressLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  progressLabelBlue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  progressValBlue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#4F46E5',
+  },
+  progressLabelCoral: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D94D26',
+  },
+  progressValCoral: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#D94D26',
+  },
+  progressLabelGreen: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  progressValGreen: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  progressTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#F3EFEF',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  fillBlue: {
+    backgroundColor: '#818CF8',
+  },
+  fillCoral: {
+    backgroundColor: '#FF7A59',
+  },
+  fillGreen: {
+    backgroundColor: '#34D399',
+  },
+  interestsPillsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
   },
-  basicPill: {
+  interestPill: {
     backgroundColor: Colors.white,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: Radius.pill,
     borderWidth: 1,
     borderColor: 'rgba(0, 0, 0, 0.05)',
   },
-  basicPillText: {
+  interestPillText: {
     ...Typography.body,
-    fontSize: 14,
-    color: Colors.plum,
+    fontSize: 13,
+    color: '#4A3E39',
     fontWeight: '600',
   },
-  cardSection: {
-    marginHorizontal: 20,
+  actionButtonContainer: {
+    paddingHorizontal: 20,
     marginTop: 24,
-    backgroundColor: Colors.white,
-    padding: 20,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
   },
-  bioBody: {
-    ...Typography.body,
-    fontSize: 15,
-    color: Colors.plum,
-    lineHeight: 22,
-  },
-  tagsFlexRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  promptCard: {
-    marginHorizontal: 20,
-    marginTop: 18,
-    backgroundColor: Colors.white,
-    padding: 20,
-    borderRadius: Radius.card,
-    borderWidth: 1,
-    borderColor: 'rgba(232, 68, 122, 0.15)',
-    shadowColor: Colors.magenta,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
+  konnectPrimaryBtn: {
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#FF6B4A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B4A',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
     shadowRadius: 10,
-    elevation: 2,
+    elevation: 6,
   },
-  promptQuestion: {
-    ...Typography.caption,
-    fontSize: 13,
-    color: Colors.magenta,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  promptAnswer: {
+  konnectBtnText: {
     ...Typography.heading,
-    fontSize: 20,
-    color: Colors.plum,
-    lineHeight: 28,
-  },
-  spotifyCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    backgroundColor: '#121212',
-    padding: 18,
-    borderRadius: Radius.card,
-  },
-  spotifyHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  spotifyBadgeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1DB954',
-  },
-  spotifyLogoText: {
-    fontSize: 12,
+    fontSize: 18,
+    color: Colors.white,
     fontWeight: '800',
-    color: 'rgba(255, 255, 255, 0.5)',
   },
-  spotifyTrackRow: {
-    flexDirection: 'row',
+  currentVibeBox: {
+    backgroundColor: '#FDEEE9',
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 74, 0.2)',
     alignItems: 'center',
-    gap: 14,
   },
-  albumArt: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-  },
-  trackMeta: {
-    flex: 1,
-  },
-  trackTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  trackArtist: {
+  currentVibeText: {
+    ...Typography.body,
     fontSize: 14,
-    color: '#B3B3B3',
+    color: '#D94D26',
+    fontWeight: '700',
   },
-  galleryFullPhoto: {
-    width: '100%',
-    height: 380,
-    borderRadius: Radius.card,
-    marginBottom: 16,
-    resizeMode: 'cover',
-  },
-  stickyFooterBar: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 90,
-    backgroundColor: Colors.cream,
+  quickActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 28,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.06)',
-    paddingBottom: 10,
+    gap: 24,
+    marginTop: 28,
   },
-  actionCircleBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  quickCircleBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.plum,
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 6,
+    elevation: 4,
   },
-  passBtn: {
+  passCircle: {
     borderWidth: 2,
     borderColor: Colors.coral,
   },
-  superBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  superCircle: {
     borderWidth: 2,
-    borderColor: Colors.gold,
+    borderColor: Colors.magenta,
   },
-  likeBtn: {
+  likeCircle: {
     backgroundColor: Colors.magenta,
   },
   actionIcon: {
-    fontSize: 24,
+    fontSize: 22,
   },
 });

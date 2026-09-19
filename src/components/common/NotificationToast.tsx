@@ -6,13 +6,14 @@ import {
   Image,
   TouchableOpacity,
   Dimensions,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Colors } from '../../theme/colors';
 import { Typography, Radius } from '../../theme/typography';
@@ -58,8 +59,11 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   }, [toast]);
 
   const dismissToast = () => {
-    translateY.value = withTiming(-120, { duration: 200 }, () => {
-      onDismiss();
+    translateY.value = withTiming(-120, { duration: 200 }, (finished) => {
+      'worklet';
+      if (finished && onDismiss) {
+        runOnJS(onDismiss)();
+      }
     });
   };
 

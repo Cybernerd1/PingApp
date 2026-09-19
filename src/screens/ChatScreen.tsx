@@ -13,6 +13,7 @@ import {
 import { Colors } from '../theme/colors';
 import { Typography, Radius } from '../theme/typography';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import { BackArrowIcon, MoreIcon, SendIcon } from '../components/illustrations/Icons';
 
 export interface ChatMessage {
   id: string;
@@ -196,7 +197,7 @@ export const ChatScreen: React.FC = () => {
               onPress={() => setActiveConv(null)}
               style={styles.backBtn}
             >
-              <Text style={styles.backIcon}>←</Text>
+              <BackArrowIcon size={22} color={Colors.plum} />
             </TouchableOpacity>
 
             <Image source={{ uri: activeConv.avatar }} style={styles.headerAvatar} />
@@ -211,7 +212,7 @@ export const ChatScreen: React.FC = () => {
               onPress={() => setUnmatchTarget(activeConv)}
               style={styles.unmatchBtn}
             >
-              <Text style={styles.unmatchIcon}>⋮</Text>
+              <MoreIcon size={22} color={Colors.plum} />
             </TouchableOpacity>
           </View>
 
@@ -265,7 +266,7 @@ export const ChatScreen: React.FC = () => {
                 !inputText.trim() && styles.sendBtnDisabled,
               ]}
             >
-              <Text style={styles.sendIcon}>➔</Text>
+              <SendIcon size={16} color={Colors.white} />
             </TouchableOpacity>
           </View>
         </View>
@@ -444,11 +445,6 @@ const styles = StyleSheet.create({
   backBtn: {
     paddingRight: 12,
   },
-  backIcon: {
-    fontSize: 22,
-    color: Colors.plum,
-    fontWeight: '800',
-  },
   headerAvatar: {
     width: 40,
     height: 40,
@@ -471,10 +467,6 @@ const styles = StyleSheet.create({
   },
   unmatchBtn: {
     padding: 8,
-  },
-  unmatchIcon: {
-    fontSize: 22,
-    color: Colors.plum,
   },
   messagesPadding: {
     padding: 16,
@@ -549,10 +541,5 @@ const styles = StyleSheet.create({
   },
   sendBtnDisabled: {
     backgroundColor: 'rgba(232, 68, 122, 0.4)',
-  },
-  sendIcon: {
-    fontSize: 16,
-    color: Colors.white,
-    fontWeight: '800',
   },
 });

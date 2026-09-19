@@ -1,8 +1,9 @@
 import axios, { InternalAxiosRequestConfig, AxiosResponse, AxiosError } from 'axios';
 import { ApiLogger } from './logger';
+import { ENV } from '../config/env';
 
-// Default backend API URL (Use 10.0.2.2 for Android emulator, localhost for iOS simulator)
-export const BASE_URL = 'http://10.0.2.2:5000/api';
+// Backend API URL from environment configuration
+export const BASE_URL = ENV.API_URL;
 
 // Create Axios Instance
 export const apiClient = axios.create({

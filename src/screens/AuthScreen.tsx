@@ -3,18 +3,16 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   ScrollView,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path, G } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { Typography, Radius } from '../theme/typography';
+import { Typography } from '../theme/typography';
 import { Button } from '../components/Button';
-import { Input } from '../components/Input';
 import { LogoMark } from '../components/illustrations/BrandAssets';
-import apiClient, { setAuthToken } from '../services/apiClient';
+import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import { signInWithGoogle } from '../services/authService';
 
 interface AuthScreenProps {
   onSuccess: (userData: any) => void;
@@ -44,96 +42,45 @@ const GoogleIcon = () => (
 );
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Form Fields
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [username, setUsername] = useState('');
+  // Custom Alert Modal State
+  const [modalConfig, setModalConfig] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    icon?: string;
+    confirmText?: string;
+    cancelText?: string | null;
+    onConfirm: () => void;
+    onCancel?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
-  // Validation Errors
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const validate = () => {
-    const errs: Record<string, string> = {};
-    if (!email.trim()) {
-      errs.email = 'Email address is required';
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errs.email = 'Enter a valid email address';
-    }
-
-    if (!password) {
-      errs.password = 'Password is required';
-    } else if (password.length < 6) {
-      errs.password = 'Password must be at least 6 characters';
-    }
-
-    if (isSignUp && !username.trim()) {
-      errs.username = 'Username is required';
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validate()) return;
+  const handleGoogleSignIn = async () => {
     setLoading(true);
-
     try {
-      const endpoint = isSignUp ? '/auth/register' : '/auth/login';
-      const payload = isSignUp
-        ? { email, password, username }
-        : { email, password };
-
-      const response = await apiClient.post(endpoint, payload);
-      const data = response.data?.data;
-
-      if (data?.accessToken) {
-        setAuthToken(data.accessToken);
-        onSuccess(data.user || { email, username: username || email.split('@')[0] });
-      } else {
-        // Mock fallback demo for smooth testing
-        onSuccess({ id: 'user_demo_123', email, username: username || 'PingUser' });
+      const res = await signInWithGoogle();
+      if (res && res.user) {
+        onSuccess(res.user);
       }
     } catch (err: any) {
-      const msg = err.response?.data?.error?.message || 'Authentication failed. Please check your credentials.';
-      // Enable seamless offline/local preview if backend server is not running
-      Alert.alert('Ping Auth', `${msg}\n\nContinuing in Demo Mode...`, [
-        {
-          text: 'OK',
-          onPress: () =>
-            onSuccess({
-              id: 'user_demo_123',
-              email: email || 'alex@ping.app',
-              username: username || 'Alex',
-            }),
-        },
-      ]);
+      setModalConfig({
+        visible: true,
+        title: 'Google Sign-In Error',
+        message: err.message || 'Unable to sign in with Google. Please try again.',
+        icon: '⚠️',
+        confirmText: 'OK',
+        cancelText: null,
+        onConfirm: () => setModalConfig((prev) => ({ ...prev, visible: false })),
+      });
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoogleSignIn = async () => {
-    Alert.alert(
-      'Google Auth',
-      'Google Sign-In triggers @react-native-google-signin/google-signin native SDK to obtain idToken and exchange it with backend /auth/google endpoint.',
-      [
-        {
-          text: 'Simulate Google Login',
-          onPress: () =>
-            onSuccess({
-              id: 'google_user_99',
-              email: 'google.user@ping.app',
-              username: 'GoogleUser',
-              isVerified: true,
-            }),
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
   };
 
   return (
@@ -142,97 +89,40 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Brand Header */}
-        <View style={styles.brandHeader}>
-          <LogoMark size={56} />
+        {/* Brand Header: Logo & Tagline ONLY */}
+        <View style={styles.brandContainer}>
+          <LogoMark size={72} />
           <Text style={styles.brandName}>ping</Text>
           <Text style={styles.tagline}>Real people. Happier conversations.</Text>
         </View>
 
-        {/* Segmented Auth Toggle */}
-        <View style={styles.segmentContainer}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              setIsSignUp(false);
-              setErrors({});
-            }}
-            style={[styles.segmentTab, !isSignUp && styles.activeSegmentTab]}
-          >
-            <Text style={[styles.segmentText, !isSignUp && styles.activeSegmentText]}>
-              Log In
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => {
-              setIsSignUp(true);
-              setErrors({});
-            }}
-            style={[styles.segmentTab, isSignUp && styles.activeSegmentTab]}
-          >
-            <Text style={[styles.segmentText, isSignUp && styles.activeSegmentText]}>
-              Create Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Auth Form */}
-        <View style={styles.formContainer}>
-          {isSignUp && (
-            <Input
-              label="Username"
-              placeholder="e.g. alex_ping"
-              value={username}
-              onChangeText={setUsername}
-              error={errors.username}
-              autoCapitalize="none"
-            />
-          )}
-
-          <Input
-            label="Email Address"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-            keyboardType="email-address"
-            autoCapitalize="none"
-          />
-
-          <Input
-            label="Password"
-            placeholder="••••••••"
-            value={password}
-            onChangeText={setPassword}
-            error={errors.password}
-            isPassword
-          />
-
+        {/* Primary Native Social Sign-In Controls */}
+        <View style={styles.actionContainer}>
           <Button
-            title={isSignUp ? 'Create Account' : 'Log In'}
-            onPress={handleSubmit}
+            title="Sign in with Google"
+            variant="outline"
+            icon={<GoogleIcon />}
+            onPress={handleGoogleSignIn}
             loading={loading}
-            style={styles.submitButton}
+            style={styles.googleButton}
+            textStyle={{ color: Colors.plum, fontWeight: '700' }}
           />
+
+          <Text style={styles.termsText}>
+            By signing in, you agree to our Terms of Service & Privacy Policy.
+          </Text>
         </View>
 
-        {/* Divider */}
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>or continue with</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        {/* Social Auth */}
-        <Button
-          title="Sign in with Google"
-          variant="outline"
-          icon={<GoogleIcon />}
-          onPress={handleGoogleSignIn}
-          style={styles.googleButton}
-          textStyle={{ color: Colors.plum }}
+        {/* Custom Brand Dialog Modal */}
+        <ConfirmDialog
+          visible={modalConfig.visible}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          icon={modalConfig.icon}
+          confirmText={modalConfig.confirmText}
+          cancelText={modalConfig.cancelText}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={modalConfig.onCancel}
         />
       </ScrollView>
     </SafeAreaView>
@@ -245,84 +135,53 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
   },
   scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingVertical: 32,
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  brandHeader: {
+  brandContainer: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginTop: 60,
   },
   brandName: {
     ...Typography.display,
     color: Colors.magenta,
-    fontSize: 34,
+    fontSize: 44,
     fontWeight: '800',
-    marginTop: 8,
+    marginTop: 12,
   },
   tagline: {
     ...Typography.body,
     color: Colors.textMuted,
-    fontSize: 14,
-    marginTop: 4,
+    fontSize: 16,
+    marginTop: 6,
+    textAlign: 'center',
   },
-  segmentContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.blush,
-    borderRadius: Radius.pill,
-    padding: 4,
-    marginVertical: 16,
+  actionContainer: {
     width: '100%',
-  },
-  segmentTab: {
-    flex: 1,
-    height: 42,
-    borderRadius: Radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeSegmentTab: {
-    backgroundColor: Colors.white,
-    shadowColor: Colors.plum,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  segmentText: {
-    ...Typography.bodyStrong,
-    fontSize: 14,
-    color: Colors.textMuted,
-  },
-  activeSegmentText: {
-    color: Colors.magenta,
-  },
-  formContainer: {
-    width: '100%',
-    marginTop: 8,
-  },
-  submitButton: {
-    marginTop: 8,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 24,
-    width: '100%',
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: 'rgba(43, 22, 32, 0.15)',
-  },
-  dividerText: {
-    ...Typography.caption,
-    color: Colors.textMuted,
-    paddingHorizontal: 12,
+    marginBottom: 40,
+    gap: 14,
   },
   googleButton: {
     width: '100%',
+    height: 54,
+    borderRadius: 27,
     borderColor: 'rgba(43, 22, 32, 0.2)',
     backgroundColor: Colors.white,
+    shadowColor: Colors.plum,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  termsText: {
+    ...Typography.caption,
+    color: Colors.textMuted,
+    textAlign: 'center',
+    fontSize: 12,
+    marginTop: 12,
+    lineHeight: 18,
   },
 });

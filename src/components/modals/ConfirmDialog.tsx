@@ -24,19 +24,19 @@ export interface ConfirmDialogProps {
   message: string;
   icon?: string;
   confirmText?: string;
-  cancelText?: string;
+  cancelText?: string | null;
   isDanger?: boolean;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
 }
 
 export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   visible,
   title,
   message,
-  icon = '⚠️',
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  icon = '✨',
+  confirmText = 'OK',
+  cancelText,
   isDanger = false,
   onConfirm,
   onCancel,
@@ -64,12 +64,20 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   if (!visible) return null;
 
+  const handleClose = () => {
+    if (onCancel) {
+      onCancel();
+    } else {
+      onConfirm();
+    }
+  };
+
   return (
     <Modal
       transparent
       visible={visible}
       animationType="none"
-      onRequestClose={onCancel}
+      onRequestClose={handleClose}
     >
       <Animated.View style={[styles.overlay, animatedBackdrop]}>
         <Animated.View style={[styles.dialogCard, animatedCard]}>
@@ -86,13 +94,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
           {/* Action Buttons Row */}
           <View style={styles.buttonRow}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={onCancel}
-              style={styles.cancelBtn}
-            >
-              <Text style={styles.cancelBtnText}>{cancelText}</Text>
-            </TouchableOpacity>
+            {cancelText && onCancel ? (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={onCancel}
+                style={styles.cancelBtn}
+              >
+                <Text style={styles.cancelBtnText}>{cancelText}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <TouchableOpacity
               activeOpacity={0.8}
@@ -197,8 +207,8 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   confirmBtnDanger: {
-    backgroundColor: '#EB5757',
-    shadowColor: '#EB5757',
+    backgroundColor: Colors.danger,
+    shadowColor: Colors.danger,
   },
   confirmBtnText: {
     ...Typography.body,

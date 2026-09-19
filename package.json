@@ -10,11 +10,16 @@
     "test": "jest"
   },
   "dependencies": {
+    "@react-native-firebase/app": "^21.8.0",
+    "@react-native-firebase/auth": "^21.8.0",
+    "@react-native-google-signin/google-signin": "^16.1.5",
     "@react-native/new-app-screen": "0.87.1",
     "axios": "^1.20.0",
     "react": "19.2.3",
     "react-native": "0.87.1",
-    "react-native-gesture-handler": "^2.33.0",
+    "react-native-device-info": "^14.0.1",
+    "react-native-gesture-handler": "^3.3.0",
+    "react-native-keychain": "^9.0.0",
     "react-native-reanimated": "^4.7.0",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",

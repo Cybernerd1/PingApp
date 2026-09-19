@@ -7,8 +7,8 @@ import {
   FlatList,
   Image,
   TouchableOpacity,
-  SafeAreaView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../../theme/colors';
 import { Typography, Radius } from '../../theme/typography';
 
@@ -143,14 +143,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.06)',
     backgroundColor: Colors.cream,
+    zIndex: 10,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: Colors.plum,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   closeIcon: {
     fontSize: 16,

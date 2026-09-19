@@ -10,6 +10,16 @@ import {
 import { Colors } from '../theme/colors';
 import { Typography, Radius } from '../theme/typography';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import {
+  EditProfileIcon,
+  BellIcon,
+  ShieldIcon,
+  SettingsIcon,
+  LogoutIcon,
+  CameraIcon,
+  ChevronRightIcon,
+  UserIcon,
+} from '../components/illustrations/Icons';
 
 interface ProfileScreenProps {
   user?: any;
@@ -21,6 +31,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onLogout,
 }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   const userData = user || {
     username: 'Alex Morgan',
@@ -29,6 +40,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     location: 'San Francisco, CA',
     bio: 'Coffee addict, UI/UX enthusiast, and weekend surfer 🏄‍♂️ Looking for good vibes and great conversations.',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+    email: 'alex@ping.app',
     completionPercentage: 85,
   };
 
@@ -38,13 +50,25 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* Profile Card Header */}
         <View style={styles.headerCard}>
           <View style={styles.avatarWrapper}>
-            <Image source={{ uri: userData.avatar }} style={styles.avatarImage} />
+            {userData.avatar && !avatarError ? (
+              <Image
+                source={{ uri: userData.avatar }}
+                style={styles.avatarImage}
+                onError={() => setAvatarError(true)}
+              />
+            ) : (
+              <View style={[styles.avatarImage, styles.avatarFallback]}>
+                <UserIcon size={44} color={Colors.magenta} />
+              </View>
+            )}
             <TouchableOpacity activeOpacity={0.8} style={styles.editAvatarBadge}>
-              <Text style={styles.editAvatarIcon}>📷</Text>
+              <CameraIcon size={16} color={Colors.plum} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.userName}>{userData.username}, {userData.age}</Text>
+          <Text style={styles.userName}>
+            {userData.username}{userData.age ? `, ${userData.age}` : ''}
+          </Text>
           <Text style={styles.userJob}>💼 {userData.jobTitle}</Text>
           <Text style={styles.userLocation}>📍 {userData.location}</Text>
 
@@ -65,27 +89,35 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <Text style={styles.sectionHeading}>Account Settings</Text>
 
           <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
-            <Text style={styles.settingIcon}>👤</Text>
+            <View style={styles.settingIconCircle}>
+              <EditProfileIcon size={18} color={Colors.magenta} />
+            </View>
             <Text style={styles.settingLabel}>Edit Profile & Photos</Text>
-            <Text style={styles.arrowIcon}>›</Text>
+            <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
-            <Text style={styles.settingIcon}>🔔</Text>
+            <View style={styles.settingIconCircle}>
+              <BellIcon size={18} color={Colors.magenta} />
+            </View>
             <Text style={styles.settingLabel}>Push Notification Settings</Text>
-            <Text style={styles.arrowIcon}>›</Text>
+            <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
-            <Text style={styles.settingIcon}>🛡️</Text>
+            <View style={styles.settingIconCircle}>
+              <ShieldIcon size={18} color={Colors.magenta} />
+            </View>
             <Text style={styles.settingLabel}>Privacy & Security</Text>
-            <Text style={styles.arrowIcon}>›</Text>
+            <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
           <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
-            <Text style={styles.settingIcon}>🎛️</Text>
+            <View style={styles.settingIconCircle}>
+              <SettingsIcon size={18} color={Colors.magenta} />
+            </View>
             <Text style={styles.settingLabel}>Discovery Preferences</Text>
-            <Text style={styles.arrowIcon}>›</Text>
+            <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -95,7 +127,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           onPress={() => setShowLogoutConfirm(true)}
           style={styles.logoutBtn}
         >
-          <Text style={styles.logoutBtnText}>🚪 Log Out</Text>
+          <LogoutIcon size={18} color={Colors.danger} />
+          <Text style={styles.logoutBtnText}>Log Out</Text>
         </TouchableOpacity>
 
         <Text style={styles.versionText}>Ping v1.0.0 • Made with ❤️</Text>
@@ -167,8 +200,10 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
-  editAvatarIcon: {
-    fontSize: 16,
+  avatarFallback: {
+    backgroundColor: Colors.blush,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   userName: {
     ...Typography.heading,
@@ -246,8 +281,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0,0,0,0.04)',
   },
-  settingIcon: {
-    fontSize: 20,
+  settingIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(232, 68, 122, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 14,
   },
   settingLabel: {
@@ -257,24 +297,22 @@ const styles = StyleSheet.create({
     color: Colors.plum,
     fontWeight: '600',
   },
-  arrowIcon: {
-    fontSize: 20,
-    color: Colors.textMuted,
-  },
   logoutBtn: {
     height: 52,
-    backgroundColor: '#FFF0F0',
+    backgroundColor: 'rgba(242, 134, 95, 0.1)',
     borderRadius: Radius.card,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 10,
     borderWidth: 1,
-    borderColor: 'rgba(235, 87, 87, 0.2)',
+    borderColor: 'rgba(242, 134, 95, 0.25)',
   },
   logoutBtnText: {
     ...Typography.body,
     fontSize: 16,
     fontWeight: '700',
-    color: '#EB5757',
+    color: Colors.danger,
   },
   versionText: {
     ...Typography.caption,

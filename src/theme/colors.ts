@@ -21,11 +21,11 @@ export const Colors = {
   borderLight: 'rgba(232, 68, 122, 0.2)',
   inputBackground: '#FFFFFF',
 
-  // Status & Swipe Feedback
-  likeGreen: '#4CAF50',
-  passRed: '#FF5252',
-  superlikeBlue: '#2196F3',
-  gold: '#FFC107',
+  // Status & Swipe Feedback (brand-aligned)
+  like: '#E8447A',        // Magenta — ping/like stamp & button
+  pass: '#F2865F',        // Coral — pass/nope stamp & button
+  superlike: '#E8447A',   // Magenta — super ping stamp & button
+  danger: '#F2865F',      // Coral — destructive actions (logout, unmatch, errors)
 };
 
 export type ColorType = typeof Colors;

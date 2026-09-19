@@ -36,7 +36,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...Typography.caption,
-    color: Colors.magenta,
+    color: Colors.plum,
     fontWeight: '600',
   },
 });
