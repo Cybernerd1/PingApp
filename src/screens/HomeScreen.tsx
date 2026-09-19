@@ -6,10 +6,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
-import { Header } from '../components/Header';
 import { CardStack, CandidateProfile } from '../components/CardStack';
 import { MascotEmptyStateSVG } from '../components/illustrations/BrandAssets';
 import { Button } from '../components/Button';
@@ -208,18 +206,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Top Header */}
-        <Header
-          matchCount={3}
-          onFilterPress={() =>
-            Alert.alert('Filters', 'Distance: < 25 km\nAge: 20-30\nInterests: Coffee, Music, Tech')
-          }
-          onMatchesPress={onOpenChat}
-        />
-
-        {/* Main Swipe Deck Container */}
+    <View style={styles.container}>
+      {/* Main Swipe Deck Container */}
         <View style={styles.content}>
           {loading ? (
             <View style={styles.centerContainer}>
@@ -280,7 +268,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
           }}
         />
       </View>
-    </SafeAreaView>
   );
 };
 

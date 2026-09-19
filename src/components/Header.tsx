@@ -5,43 +5,35 @@ import { Colors } from '../theme/colors';
 import { Typography } from '../theme/typography';
 
 interface HeaderProps {
-  onFilterPress?: () => void;
-  onMatchesPress?: () => void;
-  onProfilePress?: () => void;
-  matchCount?: number;
+  onNotificationPress?: () => void;
+  unreadCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  onFilterPress,
-  onMatchesPress,
-  onProfilePress,
-  matchCount = 3,
+  onNotificationPress,
+  unreadCount = 2,
 }) => {
   return (
     <View style={styles.container}>
-      <TouchableOpacity activeOpacity={0.8} onPress={onProfilePress} style={styles.leftBrand}>
-        <LogoMark size={38} />
+      {/* Brand Title with Logo */}
+      <View style={styles.leftBrand}>
+        <LogoMark size={36} />
         <Text style={styles.brandTitle}>ping</Text>
-      </TouchableOpacity>
+      </View>
 
+      {/* Notification Icon Button ONLY */}
       <View style={styles.rightActions}>
         <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onFilterPress}
-          style={styles.iconButton}
+          activeOpacity={0.75}
+          onPress={onNotificationPress}
+          style={styles.notificationBtn}
         >
-          <Text style={styles.iconText}>🎛️</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onMatchesPress}
-          style={styles.iconButton}
-        >
-          <Text style={styles.iconText}>💬</Text>
-          {matchCount > 0 && (
+          <Text style={styles.bellIcon}>🔔</Text>
+          {unreadCount > 0 && (
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{matchCount}</Text>
+              <Text style={styles.badgeText}>
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </Text>
             </View>
           )}
         </TouchableOpacity>
@@ -58,6 +50,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     backgroundColor: Colors.cream,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.04)',
   },
   leftBrand: {
     flexDirection: 'row',
@@ -74,40 +68,41 @@ const styles = StyleSheet.create({
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  iconButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  notificationBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.plum,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
     position: 'relative',
   },
-  iconText: {
-    fontSize: 18,
+  bellIcon: {
+    fontSize: 20,
   },
   badge: {
     position: 'absolute',
     top: -2,
     right: -2,
     backgroundColor: Colors.magenta,
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: Colors.cream,
   },
   badgeText: {
     color: Colors.white,
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
 });
