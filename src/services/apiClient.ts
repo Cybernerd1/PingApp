@@ -5,10 +5,23 @@ import { ENV } from '../config/env';
 // Backend API URL from environment configuration
 export const BASE_URL = ENV.API_URL;
 
+/**
+ * Per-endpoint timeout overrides (ms).
+ * The backend runs on Render free tier — cold-starts take 30-60s.
+ * Auth endpoints are always the first hit after a cold-start, so they get a longer timeout.
+ */
+const ENDPOINT_TIMEOUTS: Record<string, number> = {
+  '/auth/verify': 60_000,   // Render cold-start: up to 60s on first wakeup
+  '/auth/refresh': 30_000,
+};
+
+// Default timeout for all other requests (30s — generous for a mobile app)
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 // Create Axios Instance
 export const apiClient = axios.create({
   baseURL: BASE_URL,
-  timeout: 4000,
+  timeout: DEFAULT_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json',
@@ -33,13 +46,21 @@ interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   };
 }
 
-// Request Interceptor: Attach Auth Token & Log Request
+// Request Interceptor: Attach Auth Token, apply per-endpoint timeout & Log Request
 apiClient.interceptors.request.use(
   (config: CustomAxiosRequestConfig) => {
     const requestId = `req_${++requestIdCounter}_${Math.random().toString(36).substring(2, 6)}`;
     const startTime = Date.now();
 
     config._meta = { requestId, startTime };
+
+    // Apply per-endpoint timeout override if defined
+    const urlPath = config.url || '';
+    const overrideTimeout = ENDPOINT_TIMEOUTS[urlPath];
+    if (overrideTimeout) {
+      config.timeout = overrideTimeout;
+      console.log(`⏱️  [apiClient] Timeout override for ${urlPath}: ${overrideTimeout / 1000}s (Render cold-start)`);
+    }
 
     if (authToken && config.headers) {
       config.headers.Authorization = `Bearer ${authToken}`;
@@ -87,6 +108,20 @@ apiClient.interceptors.response.use(
     const config = error.config as CustomAxiosRequestConfig | undefined;
     const meta = config?._meta || { requestId: 'unknown', startTime: Date.now() };
     const durationMs = Date.now() - meta.startTime;
+
+    // Provide clearer diagnosis for common network failures
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      console.error(
+        `⏱️  [apiClient] REQUEST TIMED OUT after ${durationMs}ms for ${config?.url}.`,
+        'The backend (Render free tier) may still be cold-starting — try again in 10s.',
+      );
+    } else if (!error.response) {
+      console.error(
+        `📡 [apiClient] NO RESPONSE received for ${config?.url} (${durationMs}ms).`,
+        'Error code:', error.code,
+        '— Check device internet connection or backend reachability.',
+      );
+    }
 
     // Log API error
     ApiLogger.logError(meta.requestId, error, durationMs);

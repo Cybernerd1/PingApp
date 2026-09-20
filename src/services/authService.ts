@@ -16,13 +16,16 @@ import { ENV } from '../config/env';
  * Configure Google Sign-In with Web Client ID
  */
 export const configureGoogleSignIn = () => {
+  console.log('🔧 [GoogleSignin] Configuring with webClientId:', ENV.GOOGLE_WEB_CLIENT_ID);
   try {
     GoogleSignin.configure({
       webClientId: ENV.GOOGLE_WEB_CLIENT_ID,
       offlineAccess: true,
     });
+    console.log('✅ [GoogleSignin] Configuration complete');
   } catch (err) {
-    console.log('💡 [GoogleSignin config]:', err);
+    console.error('❌ [GoogleSignin] Configuration failed:', err);
+    throw err;
   }
 };
 
@@ -37,42 +40,101 @@ export interface AuthResult {
  * Throws on any error — no mock fallback data.
  */
 export const signInWithGoogle = async (): Promise<AuthResult> => {
+  console.log('\n🚀 ─────────────────────────────────────────');
+  console.log('🚀 [signInWithGoogle] STARTED');
+  console.log('🚀 Platform:', Platform.OS);
+  console.log('🚀 webClientId:', ENV.GOOGLE_WEB_CLIENT_ID);
+
   configureGoogleSignIn();
 
   // Ensure Google Play Services are available on Android
   if (Platform.OS === 'android') {
+    console.log('📱 [step 1] Checking Google Play Services availability...');
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    console.log('✅ [step 1] Play Services OK');
   }
 
-  // Trigger Native Google Account Picker (@react-native-google-signin/google-signin v13.1.0 API)
-  const response = await GoogleSignin.signIn();
-  const idToken = response.data?.idToken;
+  // Trigger Native Google Account Picker
+  console.log('📱 [step 2] Calling GoogleSignin.signIn() — account picker should appear...');
+  let response: any;
+  try {
+    response = await GoogleSignin.signIn();
+  } catch (err: any) {
+    console.error('❌ [step 2] GoogleSignin.signIn() threw:', err?.code, err?.message, err);
+    throw err;
+  }
+  console.log('✅ [step 2] GoogleSignin.signIn() returned:', JSON.stringify({
+    type: response?.type,
+    hasData: !!response?.data,
+    hasIdToken: !!response?.data?.idToken,
+    user: response?.data?.user ? {
+      email: response.data.user.email,
+      name: response.data.user.name,
+      id: response.data.user.id,
+    } : null,
+  }, null, 2));
 
+  const idToken = response.data?.idToken;
   if (!idToken) {
+    console.error('❌ [step 2] No ID token in GoogleSignin response. Full response:', JSON.stringify(response, null, 2));
     throw new Error('Google Sign-In failed: No ID Token received from Google.');
   }
+  console.log('✅ [step 2] Google ID Token obtained (first 30 chars):', idToken.substring(0, 30) + '...');
 
   // Exchange Google ID Token for Firebase Auth Credential
+  console.log('🔥 [step 3] Creating Firebase GoogleAuthProvider credential...');
   const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-  const userCredential = await auth().signInWithCredential(googleCredential);
+  console.log('🔥 [step 3] Calling auth().signInWithCredential()...');
+  let userCredential: any;
+  try {
+    userCredential = await auth().signInWithCredential(googleCredential);
+  } catch (err: any) {
+    console.error('❌ [step 3] Firebase signInWithCredential failed:', err?.code, err?.message, err);
+    throw err;
+  }
+  console.log('✅ [step 3] Firebase sign-in success. User UID:', userCredential.user.uid);
+  console.log('   email:', userCredential.user.email);
+  console.log('   displayName:', userCredential.user.displayName);
 
-  // Obtain Firebase ID Token to verify with Ping backend
-  const firebaseIdToken = await userCredential.user.getIdToken(true);
+  // Obtain Firebase ID Token
+  console.log('🔥 [step 4] Getting Firebase ID Token via getIdToken(true)...');
+  let firebaseIdToken: string;
+  try {
+    firebaseIdToken = await userCredential.user.getIdToken(true);
+  } catch (err: any) {
+    console.error('❌ [step 4] getIdToken() failed:', err?.code, err?.message, err);
+    throw err;
+  }
+  console.log('✅ [step 4] Firebase ID Token obtained (first 30 chars):', firebaseIdToken.substring(0, 30) + '...');
+
   const deviceId = await DeviceInfo.getUniqueId();
+  console.log('📱 [step 4] Device ID:', deviceId);
 
-  // Send Firebase ID Token & Device ID to backend POST /auth/verify
-  const res = await apiClient.post('/auth/verify', {
-    firebaseIdToken,
-    deviceId,
-  });
+  // Send to backend POST /auth/verify
+  console.log('📡 [step 5] POSTing to /auth/verify...');
+  console.log('   Body:', JSON.stringify({ firebaseIdToken: firebaseIdToken.substring(0, 30) + '...', deviceId }, null, 2));
+  let res: any;
+  try {
+    res = await apiClient.post('/auth/verify', {
+      firebaseIdToken,
+      deviceId,
+    });
+  } catch (err: any) {
+    console.error('❌ [step 5] /auth/verify request failed:', err?.response?.status, err?.response?.data, err?.message);
+    throw err;
+  }
+  console.log('✅ [step 5] /auth/verify response status:', res.status);
+  console.log('   Response data:', JSON.stringify(res.data, null, 2));
 
   const authData = res.data?.data;
   const accessToken = authData?.accessToken;
   const refreshToken = authData?.refreshToken;
 
   if (!accessToken || !refreshToken) {
+    console.error('❌ [step 5] Missing tokens in response. authData:', JSON.stringify(authData, null, 2));
     throw new Error('Authentication failed: Server response is missing access token or refresh token.');
   }
+  console.log('✅ [step 5] Access & Refresh tokens received.');
 
   const user = authData?.user || {
     id: userCredential.user.uid,
@@ -81,13 +143,19 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
     avatar: userCredential.user.photoURL,
     onboardingComplete: false,
   };
+  console.log('👤 [step 6] User object:', JSON.stringify(user, null, 2));
 
   // Store tokens in Keychain & update Axios headers
+  console.log('💾 [step 6] Saving tokens to Keychain...');
   const saved = await saveTokens(accessToken, refreshToken);
   if (!saved) {
+    console.error('❌ [step 6] saveTokens() returned false');
     throw new Error('Failed to save session. Please try signing in again.');
   }
   setAuthToken(accessToken);
+  console.log('✅ [step 6] Tokens saved, auth header set.');
+  console.log('🎉 [signInWithGoogle] COMPLETE — user authenticated successfully!');
+  console.log('🚀 ─────────────────────────────────────────\n');
 
   return {
     user,
@@ -128,15 +196,15 @@ export const checkInitialSession = async (): Promise<{
     setAuthToken(tokens.accessToken);
 
     try {
-      // Validate session with backend GET /users/me
-      const res = await apiClient.get('/users/me');
+      // Validate session with backend GET /auth/me
+      const res = await apiClient.get('/auth/me');
       const user = res.data?.data?.user;
 
       if (user) {
         return {
           authenticated: true,
           user,
-          onboardingComplete: !!user.onboardingComplete,
+          onboardingComplete: !!user.onboardingCompleted,
         };
       }
     } catch (err: any) {
@@ -153,13 +221,13 @@ export const checkInitialSession = async (): Promise<{
             await saveTokens(newAccess, newRefresh);
             setAuthToken(newAccess);
 
-            const meRes = await apiClient.get('/users/me');
+            const meRes = await apiClient.get('/auth/me');
             const meUser = meRes.data?.data?.user;
             if (meUser) {
               return {
                 authenticated: true,
                 user: meUser,
-                onboardingComplete: !!meUser.onboardingComplete,
+                onboardingComplete: !!meUser.onboardingCompleted,
               };
             }
           }

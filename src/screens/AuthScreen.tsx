@@ -62,6 +62,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
   });
 
   const handleGoogleSignIn = async () => {
+    console.log('🔘 [AuthScreen] "Sign in with Google" button pressed — calling signInWithGoogle()...');
     setLoading(true);
     try {
       const res = await signInWithGoogle();
@@ -69,11 +70,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         onSuccess(res.user);
       }
     } catch (err: any) {
+      // Distinguish timeout / server-waking-up from hard auth failures
+      const isNetworkOrTimeout =
+        err?.code === 'ECONNABORTED' ||
+        err?.message === 'Network Error' ||
+        err?.message?.toLowerCase().includes('timeout');
+
       setModalConfig({
         visible: true,
-        title: 'Google Sign-In Error',
-        message: err.message || 'Unable to sign in with Google. Please try again.',
-        icon: '⚠️',
+        title: isNetworkOrTimeout ? 'Server is Starting Up ☕' : 'Sign-In Error',
+        message: isNetworkOrTimeout
+          ? 'Our server is waking up from sleep (Render free tier). Please wait a few seconds and try again.'
+          : err.message || 'Unable to sign in with Google. Please try again.',
+        icon: isNetworkOrTimeout ? '⏳' : '⚠️',
         confirmText: 'OK',
         cancelText: null,
         onConfirm: () => setModalConfig((prev) => ({ ...prev, visible: false })),
