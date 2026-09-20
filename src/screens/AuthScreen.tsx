@@ -15,7 +15,7 @@ import { ConfirmDialog } from '../components/modals/ConfirmDialog';
 import { signInWithGoogle } from '../services/authService';
 
 interface AuthScreenProps {
-  onSuccess: (userData: any) => void;
+  onSuccess: (result: { user: any; isNewUser: boolean; onboardingComplete: boolean }) => void;
 }
 
 const GoogleIcon = () => (
@@ -67,7 +67,11 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
     try {
       const res = await signInWithGoogle();
       if (res && res.user) {
-        onSuccess(res.user);
+        onSuccess({
+          user: res.user,
+          isNewUser: res.isNewUser,
+          onboardingComplete: res.onboardingComplete,
+        });
       }
     } catch (err: any) {
       // Distinguish timeout / server-waking-up from hard auth failures

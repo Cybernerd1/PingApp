@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   NativeScrollEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../theme/colors';
 import { Radius, Typography } from '../theme/typography';
 import { Button } from '../components/Button';
@@ -76,9 +77,16 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
         animated: true,
       });
     } else {
-      onComplete();
+      markSeenAndComplete();
     }
   };
+
+  const markSeenAndComplete = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    } catch (_) {}
+    onComplete();
+  }, [onComplete]);
 
   const renderSlide = ({ item }: { item: OnboardingSlide }) => (
     <View style={styles.slide}>
@@ -97,7 +105,7 @@ export const OnboardingScreen: React.FC<OnboardingScreenProps> = ({ onComplete }
         <View style={styles.headerRow}>
           <Text style={styles.brandLogoText}>ping</Text>
           {activeSlide < ONBOARDING_SLIDES.length - 1 ? (
-            <TouchableOpacity activeOpacity={0.7} onPress={onComplete}>
+            <TouchableOpacity activeOpacity={0.7} onPress={markSeenAndComplete}>
               <Text style={styles.skipText}>Skip</Text>
             </TouchableOpacity>
           ) : <View style={{ width: 40 }} />}

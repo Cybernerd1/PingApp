@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { StatusBar, StyleSheet, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from './src/theme/colors';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
+import { SetupScreen } from './src/screens/SetupScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -20,9 +22,15 @@ import {
 } from './src/services/fcmService';
 import { checkInitialSession, signOutAll } from './src/services/authService';
 
-export type AppStep = 'loading' | 'onboarding' | 'auth' | 'main';
+// ─── App Step State Machine ───────────────────────────────────────────────────
+// loading   → determine where to go on boot
+// onboarding → marketing slides (first launch ONLY, unauthenticated)
+// auth       → sign-in screen (Google only)
+// setup      → account setup wizard (new users after Google sign-in)
+// main       → full app (authenticated + onboarding complete)
+export type AppStep = 'loading' | 'onboarding' | 'auth' | 'setup' | 'main';
 
-// Register background message handler immediately on app boot
+// Register background FCM handler immediately on app boot
 setupFCMBackgroundHandler();
 
 const INITIAL_NOTIFICATIONS: NotificationItem[] = [
@@ -59,27 +67,46 @@ function App(): React.JSX.Element {
   const [activeTab, setActiveTab] = useState<MainTabType>('home');
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // Notification Toast & Modal state
+  // Notification state
   const [toast, setToast] = useState<ToastConfig | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
 
+  // ── Boot: resolve initial step ──────────────────────────────────────────────
   useEffect(() => {
-    // 1. Initial Session Check from Keychain & Backend /users/me
-    checkInitialSession().then((session) => {
-      if (session.authenticated && session.user) {
-        setCurrentUser(session.user);
-        if (session.onboardingComplete) {
-          setCurrentStep('main');
-        } else {
-          setCurrentStep('onboarding');
+    const resolveInitialStep = async () => {
+      try {
+        // 1. Validate session via Keychain → GET /auth/me
+        const session = await checkInitialSession();
+
+        if (session.authenticated && session.user) {
+          setCurrentUser(session.user);
+          // Authenticated — route based on onboarding completion
+          if (session.onboardingComplete) {
+            setCurrentStep('main');
+          } else {
+            // Logged in but hasn't finished setup (e.g. app crashed mid-setup)
+            setCurrentStep('setup');
+          }
+          return;
         }
-      } else {
+
+        // 2. Not authenticated — show slides only on first ever launch
+        const hasSeenOnboarding = await AsyncStorage.getItem('hasSeenOnboarding');
+        if (!hasSeenOnboarding) {
+          setCurrentStep('onboarding'); // first launch → slides → auth
+        } else {
+          setCurrentStep('auth'); // returning logged-out user → auth directly
+        }
+      } catch {
+        // Fail safe to auth
         setCurrentStep('auth');
       }
-    });
+    };
 
-    // 2. Setup FCM Push Notification permissions & foreground listener
+    resolveInitialStep();
+
+    // 3. Setup FCM push notifications
     requestNotificationPermission().then(() => {
       getFCMToken();
     });
@@ -109,28 +136,49 @@ function App(): React.JSX.Element {
     return () => unsubscribeFCM();
   }, []);
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  // Marketing slides complete → go to auth
   const handleOnboardingComplete = () => {
-    setCurrentStep('main');
+    setCurrentStep('auth');
   };
 
-  const handleAuthSuccess = (userData: any) => {
-    setCurrentUser(userData);
-    if (userData.onboardingComplete) {
-      setCurrentStep('main');
-    } else {
-      setCurrentStep('onboarding');
-    }
+  // Google sign-in succeeded
+  const handleAuthSuccess = (result: { user: any; isNewUser: boolean; onboardingComplete: boolean }) => {
+    setCurrentUser(result.user);
 
-    // Trigger welcoming FCM notification toast
+    if (result.onboardingComplete) {
+      // Existing user with completed setup → straight to app
+      setCurrentStep('main');
+
+      setTimeout(() => {
+        setToast({
+          title: 'Welcome back! 💖',
+          message: 'Ready to meet some amazing people nearby?',
+          icon: '⚡',
+        });
+      }, 600);
+    } else {
+      // New user OR incomplete setup → account setup wizard
+      setCurrentStep('setup');
+    }
+  };
+
+  // Setup wizard complete → go to main
+  const handleSetupComplete = (updatedUser: any) => {
+    setCurrentUser(updatedUser ?? currentUser);
+    setCurrentStep('main');
+
     setTimeout(() => {
       setToast({
-        title: 'Welcome to Ping! 💖',
-        message: 'Your profile is active. Start swiping to meet awesome people nearby!',
+        title: 'You\'re all set! 🎉',
+        message: 'Your profile is live. Start swiping to meet people nearby!',
         icon: '✨',
       });
-    }, 800);
+    }, 600);
   };
 
+  // Logout
   const handleLogout = async () => {
     await signOutAll();
     setCurrentUser(null);
@@ -148,20 +196,32 @@ function App(): React.JSX.Element {
         {/* Global Notification Toast */}
         <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
 
+        {/* ── Loading ── */}
         {currentStep === 'loading' && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={Colors.magenta} />
           </View>
         )}
 
+        {/* ── Marketing Slides (first launch only) ── */}
         {currentStep === 'onboarding' && (
           <OnboardingScreen onComplete={handleOnboardingComplete} />
         )}
 
+        {/* ── Sign In ── */}
         {currentStep === 'auth' && (
           <AuthScreen onSuccess={handleAuthSuccess} />
         )}
 
+        {/* ── Account Setup Wizard (new users) ── */}
+        {currentStep === 'setup' && (
+          <SetupScreen
+            user={currentUser}
+            onComplete={handleSetupComplete}
+          />
+        )}
+
+        {/* ── Main App ── */}
         {currentStep === 'main' && (
           <SafeAreaView style={styles.safeArea}>
             {/* Top Header: Ping Brand Title & Notification Icon ONLY */}

@@ -33,6 +33,8 @@ export interface AuthResult {
   user: any;
   accessToken: string;
   refreshToken: string;
+  isNewUser: boolean;
+  onboardingComplete: boolean;
 }
 
 /**
@@ -136,14 +138,19 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
   }
   console.log('✅ [step 5] Access & Refresh tokens received.');
 
+  const isNewUser: boolean = authData?.isNewUser ?? false;
+  // Normalize: backend returns onboardingCompleted (with 'd'), expose as onboardingComplete
+  const onboardingComplete: boolean = !!(authData?.user?.onboardingCompleted ?? false);
+
   const user = authData?.user || {
     id: userCredential.user.uid,
     email: userCredential.user.email,
     username: userCredential.user.displayName || 'PingUser',
     avatar: userCredential.user.photoURL,
-    onboardingComplete: false,
+    onboardingCompleted: false,
   };
   console.log('👤 [step 6] User object:', JSON.stringify(user, null, 2));
+  console.log('👤 [step 6] isNewUser:', isNewUser, '| onboardingComplete:', onboardingComplete);
 
   // Store tokens in Keychain & update Axios headers
   console.log('💾 [step 6] Saving tokens to Keychain...');
@@ -161,6 +168,8 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
     user,
     accessToken,
     refreshToken,
+    isNewUser,
+    onboardingComplete,
   };
 };
 
