@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,7 +9,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 import { Typography, Radius } from '../theme/typography';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
@@ -125,6 +127,8 @@ export const ChatScreen: React.FC = () => {
   const [inputText, setInputText] = useState('');
   const [unmatchTarget, setUnmatchTarget] = useState<MatchConversation | null>(null);
 
+  const flatListRef = useRef<FlatList>(null);
+
   const handleSendMessage = () => {
     if (!inputText.trim() || !activeConv) return;
 
@@ -183,110 +187,6 @@ export const ChatScreen: React.FC = () => {
     setUnmatchTarget(null);
   };
 
-  if (activeConv) {
-    return (
-      <KeyboardAvoidingView
-        style={styles.flexOne}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.container}>
-          {/* Chat Active Header */}
-          <View style={styles.chatHeader}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setActiveConv(null)}
-              style={styles.backBtn}
-            >
-              <BackArrowIcon size={22} color={Colors.plum} />
-            </TouchableOpacity>
-
-            <Image source={{ uri: activeConv.avatar }} style={styles.headerAvatar} />
-
-            <View style={styles.headerMeta}>
-              <Text style={styles.headerName}>{activeConv.username}</Text>
-              <Text style={styles.headerStatus}>Online now</Text>
-            </View>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setUnmatchTarget(activeConv)}
-              style={styles.unmatchBtn}
-            >
-              <MoreIcon size={22} color={Colors.plum} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Messages List */}
-          <FlatList
-            data={activeConv.messages}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.messagesPadding}
-            renderItem={({ item }) => (
-              <View
-                style={[
-                  styles.messageBubble,
-                  item.isUser ? styles.userBubble : styles.matchBubble,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.messageText,
-                    item.isUser ? styles.userMessageText : styles.matchMessageText,
-                  ]}
-                >
-                  {item.text}
-                </Text>
-                <Text
-                  style={[
-                    styles.timeText,
-                    item.isUser ? styles.userTimeText : styles.matchTimeText,
-                  ]}
-                >
-                  {item.timestamp}
-                </Text>
-              </View>
-            )}
-          />
-
-          {/* Message Input Bar */}
-          <View style={styles.inputBar}>
-            <TextInput
-              style={styles.textInput}
-              placeholder={`Message ${activeConv.username}...`}
-              placeholderTextColor={Colors.textMuted}
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={handleSendMessage}
-            />
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={handleSendMessage}
-              style={[
-                styles.sendBtn,
-                !inputText.trim() && styles.sendBtnDisabled,
-              ]}
-            >
-              <SendIcon size={16} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Custom Unmatch Confirm Box */}
-        <ConfirmDialog
-          visible={!!unmatchTarget}
-          title={`Unmatch ${unmatchTarget?.username}?`}
-          message="Are you sure you want to unmatch? This chat history will be permanently cleared."
-          icon="💔"
-          confirmText="Unmatch"
-          cancelText="Cancel"
-          isDanger
-          onConfirm={handleConfirmUnmatch}
-          onCancel={() => setUnmatchTarget(null)}
-        />
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <View style={styles.container}>
       {/* Matches Horizontal Ribbon */}
@@ -339,11 +239,130 @@ export const ChatScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       />
+
+      {/* Full-Screen Active Chat Modal */}
+      <Modal
+        visible={!!activeConv}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setActiveConv(null)}
+      >
+        {activeConv && (
+          <SafeAreaView style={styles.fullScreenSafe} edges={['top', 'bottom']}>
+            <KeyboardAvoidingView
+              style={styles.flexOne}
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+              <View style={styles.container}>
+                {/* Chat Active Header */}
+                <View style={styles.chatHeader}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setActiveConv(null)}
+                    style={styles.backBtn}
+                  >
+                    <BackArrowIcon size={22} color={Colors.plum} />
+                  </TouchableOpacity>
+
+                  <Image source={{ uri: activeConv.avatar }} style={styles.headerAvatar} />
+
+                  <View style={styles.headerMeta}>
+                    <Text style={styles.headerName}>{activeConv.username}</Text>
+                    <Text style={styles.headerStatus}>Online now</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setUnmatchTarget(activeConv)}
+                    style={styles.unmatchBtn}
+                  >
+                    <MoreIcon size={22} color={Colors.plum} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Messages List */}
+                <FlatList
+                  ref={flatListRef}
+                  data={activeConv.messages}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={styles.messagesPadding}
+                  onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+                  onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                  renderItem={({ item }) => (
+                    <View
+                      style={[
+                        styles.messageBubble,
+                        item.isUser ? styles.userBubble : styles.matchBubble,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.messageText,
+                          item.isUser ? styles.userMessageText : styles.matchMessageText,
+                        ]}
+                      >
+                        {item.text}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.timeText,
+                          item.isUser ? styles.userTimeText : styles.matchTimeText,
+                        ]}
+                      >
+                        {item.timestamp}
+                      </Text>
+                    </View>
+                  )}
+                />
+
+                {/* Message Input Bar */}
+                <View style={styles.inputBar}>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder={`Message ${activeConv.username}...`}
+                    placeholderTextColor={Colors.textMuted}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    onSubmitEditing={handleSendMessage}
+                  />
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={handleSendMessage}
+                    style={[
+                      styles.sendBtn,
+                      !inputText.trim() && styles.sendBtnDisabled,
+                    ]}
+                  >
+                    <SendIcon size={16} color={Colors.white} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Custom Unmatch Confirm Box */}
+              <ConfirmDialog
+                visible={!!unmatchTarget}
+                title={`Unmatch ${unmatchTarget?.username}?`}
+                message="Are you sure you want to unmatch? This chat history will be permanently cleared."
+                icon="💔"
+                confirmText="Unmatch"
+                cancelText="Cancel"
+                isDanger
+                onConfirm={handleConfirmUnmatch}
+                onCancel={() => setUnmatchTarget(null)}
+              />
+            </KeyboardAvoidingView>
+          </SafeAreaView>
+        )}
+      </Modal>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  fullScreenSafe: {
+    flex: 1,
+    backgroundColor: Colors.cream,
+  },
   flexOne: {
     flex: 1,
   },

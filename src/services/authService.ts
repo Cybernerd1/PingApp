@@ -22,9 +22,9 @@ export const configureGoogleSignIn = () => {
       webClientId: ENV.GOOGLE_WEB_CLIENT_ID,
       offlineAccess: true,
     });
-    console.log('✅ [GoogleSignin] Configuration complete');
+    console.log('[GoogleSignin] Configuration complete');
   } catch (err) {
-    console.error('❌ [GoogleSignin] Configuration failed:', err);
+    console.error('[GoogleSignin] Configuration failed:', err);
     throw err;
   }
 };
@@ -42,30 +42,30 @@ export interface AuthResult {
  * Throws on any error — no mock fallback data.
  */
 export const signInWithGoogle = async (): Promise<AuthResult> => {
-  console.log('\n🚀 ─────────────────────────────────────────');
-  console.log('🚀 [signInWithGoogle] STARTED');
-  console.log('🚀 Platform:', Platform.OS);
-  console.log('🚀 webClientId:', ENV.GOOGLE_WEB_CLIENT_ID);
+  console.log('\n ─────────────────────────────────────────');
+  console.log('[signInWithGoogle] STARTED');
+  console.log('Platform:', Platform.OS);
+  console.log('webClientId:', ENV.GOOGLE_WEB_CLIENT_ID);
 
   configureGoogleSignIn();
 
   // Ensure Google Play Services are available on Android
   if (Platform.OS === 'android') {
-    console.log('📱 [step 1] Checking Google Play Services availability...');
+    console.log('[step 1] Checking Google Play Services availability...');
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-    console.log('✅ [step 1] Play Services OK');
+    console.log('[step 1] Play Services OK');
   }
 
   // Trigger Native Google Account Picker
-  console.log('📱 [step 2] Calling GoogleSignin.signIn() — account picker should appear...');
+  console.log('[step 2] Calling GoogleSignin.signIn() — account picker should appear...');
   let response: any;
   try {
     response = await GoogleSignin.signIn();
   } catch (err: any) {
-    console.error('❌ [step 2] GoogleSignin.signIn() threw:', err?.code, err?.message, err);
+    console.error('[step 2] GoogleSignin.signIn() threw:', err?.code, err?.message, err);
     throw err;
   }
-  console.log('✅ [step 2] GoogleSignin.signIn() returned:', JSON.stringify({
+  console.log('[step 2] GoogleSignin.signIn() returned:', JSON.stringify({
     type: response?.type,
     hasData: !!response?.data,
     hasIdToken: !!response?.data?.idToken,
@@ -78,42 +78,42 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
 
   const idToken = response.data?.idToken;
   if (!idToken) {
-    console.error('❌ [step 2] No ID token in GoogleSignin response. Full response:', JSON.stringify(response, null, 2));
+    console.error('[step 2] No ID token in GoogleSignin response. Full response:', JSON.stringify(response, null, 2));
     throw new Error('Google Sign-In failed: No ID Token received from Google.');
   }
-  console.log('✅ [step 2] Google ID Token obtained (first 30 chars):', idToken.substring(0, 30) + '...');
+  console.log('[step 2] Google ID Token obtained (first 30 chars):', idToken.substring(0, 30) + '...');
 
   // Exchange Google ID Token for Firebase Auth Credential
-  console.log('🔥 [step 3] Creating Firebase GoogleAuthProvider credential...');
+  console.log('[step 3] Creating Firebase GoogleAuthProvider credential...');
   const googleCredential = auth.GoogleAuthProvider.credential(idToken);
-  console.log('🔥 [step 3] Calling auth().signInWithCredential()...');
+  console.log('[step 3] Calling auth().signInWithCredential()...');
   let userCredential: any;
   try {
     userCredential = await auth().signInWithCredential(googleCredential);
   } catch (err: any) {
-    console.error('❌ [step 3] Firebase signInWithCredential failed:', err?.code, err?.message, err);
+    console.error('[step 3] Firebase signInWithCredential failed:', err?.code, err?.message, err);
     throw err;
   }
-  console.log('✅ [step 3] Firebase sign-in success. User UID:', userCredential.user.uid);
+  console.log('[step 3] Firebase sign-in success. User UID:', userCredential.user.uid);
   console.log('   email:', userCredential.user.email);
   console.log('   displayName:', userCredential.user.displayName);
 
   // Obtain Firebase ID Token
-  console.log('🔥 [step 4] Getting Firebase ID Token via getIdToken(true)...');
+  console.log('[step 4] Getting Firebase ID Token via getIdToken(true)...');
   let firebaseIdToken: string;
   try {
     firebaseIdToken = await userCredential.user.getIdToken(true);
   } catch (err: any) {
-    console.error('❌ [step 4] getIdToken() failed:', err?.code, err?.message, err);
+    console.error('[step 4] getIdToken() failed:', err?.code, err?.message, err);
     throw err;
   }
-  console.log('✅ [step 4] Firebase ID Token obtained (first 30 chars):', firebaseIdToken.substring(0, 30) + '...');
+  console.log('[step 4] Firebase ID Token obtained (first 30 chars):', firebaseIdToken.substring(0, 30) + '...');
 
   const deviceId = await DeviceInfo.getUniqueId();
-  console.log('📱 [step 4] Device ID:', deviceId);
+  console.log('[step 4] Device ID:', deviceId);
 
   // Send to backend POST /auth/verify
-  console.log('📡 [step 5] POSTing to /auth/verify...');
+  console.log('[step 5] POSTing to /auth/verify...');
   console.log('   Body:', JSON.stringify({ firebaseIdToken: firebaseIdToken.substring(0, 30) + '...', deviceId }, null, 2));
   let res: any;
   try {
@@ -122,10 +122,10 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
       deviceId,
     });
   } catch (err: any) {
-    console.error('❌ [step 5] /auth/verify request failed:', err?.response?.status, err?.response?.data, err?.message);
+    console.error('[step 5] /auth/verify request failed:', err?.response?.status, err?.response?.data, err?.message);
     throw err;
   }
-  console.log('✅ [step 5] /auth/verify response status:', res.status);
+  console.log('[step 5] /auth/verify response status:', res.status);
   console.log('   Response data:', JSON.stringify(res.data, null, 2));
 
   const authData = res.data?.data;
@@ -133,10 +133,10 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
   const refreshToken = authData?.refreshToken;
 
   if (!accessToken || !refreshToken) {
-    console.error('❌ [step 5] Missing tokens in response. authData:', JSON.stringify(authData, null, 2));
+    console.error('[step 5] Missing tokens in response. authData:', JSON.stringify(authData, null, 2));
     throw new Error('Authentication failed: Server response is missing access token or refresh token.');
   }
-  console.log('✅ [step 5] Access & Refresh tokens received.');
+  console.log('[step 5] Access & Refresh tokens received.');
 
   const isNewUser: boolean = authData?.isNewUser ?? false;
   // Normalize: backend returns onboardingCompleted (with 'd'), expose as onboardingComplete
@@ -149,20 +149,20 @@ export const signInWithGoogle = async (): Promise<AuthResult> => {
     avatar: userCredential.user.photoURL,
     onboardingCompleted: false,
   };
-  console.log('👤 [step 6] User object:', JSON.stringify(user, null, 2));
-  console.log('👤 [step 6] isNewUser:', isNewUser, '| onboardingComplete:', onboardingComplete);
+  console.log('[step 6] User object:', JSON.stringify(user, null, 2));
+  console.log('[step 6] isNewUser:', isNewUser, '| onboardingComplete:', onboardingComplete);
 
   // Store tokens in Keychain & update Axios headers
-  console.log('💾 [step 6] Saving tokens to Keychain...');
+  console.log('[step 6] Saving tokens to Keychain...');
   const saved = await saveTokens(accessToken, refreshToken);
   if (!saved) {
-    console.error('❌ [step 6] saveTokens() returned false');
+    console.error('[step 6] saveTokens() returned false');
     throw new Error('Failed to save session. Please try signing in again.');
   }
   setAuthToken(accessToken);
-  console.log('✅ [step 6] Tokens saved, auth header set.');
-  console.log('🎉 [signInWithGoogle] COMPLETE — user authenticated successfully!');
-  console.log('🚀 ─────────────────────────────────────────\n');
+  console.log('[step 6] Tokens saved, auth header set.');
+  console.log('[signInWithGoogle] COMPLETE — user authenticated successfully!');
+  console.log('─────────────────────────────────────────\n');
 
   return {
     user,
@@ -197,7 +197,7 @@ export const checkInitialSession = async (): Promise<{
 }> => {
   try {
     const tokens = await getTokens();
-
+    console.log('[AUTH] Checking stored token:', tokens);
     if (!tokens || !tokens.accessToken) {
       return { authenticated: false, user: null, onboardingComplete: false };
     }
@@ -210,6 +210,7 @@ export const checkInitialSession = async (): Promise<{
       const user = res.data?.data?.user;
 
       if (user) {
+        console.log("user ",user);
         return {
           authenticated: true,
           user,

@@ -20,29 +20,64 @@ import {
   ChevronRightIcon,
   UserIcon,
 } from '../components/illustrations/Icons';
+import { EditProfileModal } from './EditProfileModal';
+import { NotificationSettingsModal } from './NotificationSettingsModal';
+import { PrivacySecurityModal } from './PrivacySecurityModal';
+import { DiscoveryPreferencesModal } from './DiscoveryPreferencesModal';
 
 interface ProfileScreenProps {
   user?: any;
   onLogout: () => void;
+  onUserUpdate?: (updatedUser: any) => void;
 }
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   user,
   onLogout,
+  onUserUpdate,
 }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
 
-  const userData = user || {
-    username: 'Alex Morgan',
-    age: 25,
-    jobTitle: 'Product Designer',
-    location: 'San Francisco, CA',
-    bio: 'Coffee addict, UI/UX enthusiast, and weekend surfer 🏄‍♂️ Looking for good vibes and great conversations.',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
-    email: 'alex@ping.app',
-    completionPercentage: 85,
+  // Modal visibility states
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showDiscovery, setShowDiscovery] = useState(false);
+
+  const [localUser, setLocalUser] = useState(user);
+
+  const activeUser = localUser || user;
+
+  // Compute avatar URL from user object
+  const avatarUrl =
+    activeUser?.photos?.[0]?.url ||
+    activeUser?.avatar ||
+    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400';
+
+  // Calculate dynamic completion percentage
+  const calculateStrength = () => {
+    let score = 20; // Base signup score
+    if (activeUser?.name) score += 20;
+    if (activeUser?.about || activeUser?.bio) score += 20;
+    if (activeUser?.gender) score += 20;
+    if (activeUser?.photos?.length > 0 || activeUser?.avatar) score += 20;
+    return score;
   };
+
+  const completionPct = activeUser?.completionPercentage || calculateStrength();
+
+  const handleProfileSaved = (updatedUser: any) => {
+    setLocalUser(updatedUser);
+    if (onUserUpdate) {
+      onUserUpdate(updatedUser);
+    }
+  };
+
+  const displayName = activeUser?.name || activeUser?.username || 'Alex Morgan';
+  const ageDisplay = activeUser?.age ? `, ${activeUser.age}` : '';
+  const jobDisplay = activeUser?.jobTitle || 'Ping Member';
+  const locationDisplay = activeUser?.location || 'San Francisco, CA';
 
   return (
     <View style={styles.container}>
@@ -50,9 +85,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         {/* Profile Card Header */}
         <View style={styles.headerCard}>
           <View style={styles.avatarWrapper}>
-            {userData.avatar && !avatarError ? (
+            {avatarUrl && !avatarError ? (
               <Image
-                source={{ uri: userData.avatar }}
+                source={{ uri: avatarUrl }}
                 style={styles.avatarImage}
                 onError={() => setAvatarError(true)}
               />
@@ -61,25 +96,29 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 <UserIcon size={44} color={Colors.magenta} />
               </View>
             )}
-            <TouchableOpacity activeOpacity={0.8} style={styles.editAvatarBadge}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.editAvatarBadge}
+              onPress={() => setShowEditProfile(true)}
+            >
               <CameraIcon size={16} color={Colors.plum} />
             </TouchableOpacity>
           </View>
 
           <Text style={styles.userName}>
-            {userData.username}{userData.age ? `, ${userData.age}` : ''}
+            {displayName}{ageDisplay}
           </Text>
-          <Text style={styles.userJob}>💼 {userData.jobTitle}</Text>
-          <Text style={styles.userLocation}>📍 {userData.location}</Text>
+          <Text style={styles.userJob}>💼 {jobDisplay}</Text>
+          <Text style={styles.userLocation}>📍 {locationDisplay}</Text>
 
           {/* Profile Completion Bar */}
           <View style={styles.completionContainer}>
             <View style={styles.completionTextRow}>
               <Text style={styles.completionLabel}>Profile Strength</Text>
-              <Text style={styles.completionValue}>{userData.completionPercentage}%</Text>
+              <Text style={styles.completionValue}>{completionPct}%</Text>
             </View>
             <View style={styles.progressBarBg}>
-              <View style={[styles.progressBarFill, { width: `${userData.completionPercentage}%` }]} />
+              <View style={[styles.progressBarFill, { width: `${completionPct}%` }]} />
             </View>
           </View>
         </View>
@@ -88,7 +127,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeading}>Account Settings</Text>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.settingItem}
+            onPress={() => setShowEditProfile(true)}
+          >
             <View style={styles.settingIconCircle}>
               <EditProfileIcon size={18} color={Colors.magenta} />
             </View>
@@ -96,7 +139,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.settingItem}
+            onPress={() => setShowNotifSettings(true)}
+          >
             <View style={styles.settingIconCircle}>
               <BellIcon size={18} color={Colors.magenta} />
             </View>
@@ -104,7 +151,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.settingItem}
+            onPress={() => setShowPrivacy(true)}
+          >
             <View style={styles.settingIconCircle}>
               <ShieldIcon size={18} color={Colors.magenta} />
             </View>
@@ -112,7 +163,11 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             <ChevronRightIcon size={18} color={Colors.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity activeOpacity={0.8} style={styles.settingItem}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.settingItem}
+            onPress={() => setShowDiscovery(true)}
+          >
             <View style={styles.settingIconCircle}>
               <SettingsIcon size={18} color={Colors.magenta} />
             </View>
@@ -133,6 +188,40 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
         <Text style={styles.versionText}>Ping v1.0.0 • Made with ❤️</Text>
       </ScrollView>
+
+      {/* ── Sub-screens Modals ── */}
+
+      {/* 1. Edit Profile & Photos Modal */}
+      <EditProfileModal
+        visible={showEditProfile}
+        user={activeUser}
+        onClose={() => setShowEditProfile(false)}
+        onSaved={handleProfileSaved}
+      />
+
+      {/* 2. Notification Settings Modal */}
+      <NotificationSettingsModal
+        visible={showNotifSettings}
+        onClose={() => setShowNotifSettings(false)}
+      />
+
+      {/* 3. Privacy & Security Modal */}
+      <PrivacySecurityModal
+        visible={showPrivacy}
+        user={activeUser}
+        onClose={() => setShowPrivacy(false)}
+        onDeleteAccount={() => {
+          setShowPrivacy(false);
+          onLogout();
+        }}
+      />
+
+      {/* 4. Discovery Preferences Modal */}
+      <DiscoveryPreferencesModal
+        visible={showDiscovery}
+        user={activeUser}
+        onClose={() => setShowDiscovery(false)}
+      />
 
       {/* Custom Logout Confirmation Dialog */}
       <ConfirmDialog
@@ -322,3 +411,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
+

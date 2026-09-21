@@ -7,6 +7,7 @@ import { Colors } from './src/theme/colors';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { AuthScreen } from './src/screens/AuthScreen';
 import { SetupScreen } from './src/screens/SetupScreen';
+import { PhotoUploadScreen } from './src/screens/PhotoUploadScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { ProfileScreen } from './src/screens/ProfileScreen';
@@ -20,15 +21,17 @@ import {
   getFCMToken,
   onForegroundMessage,
 } from './src/services/fcmService';
+import { requestAllPermissions } from './src/services/permissionsService';
 import { checkInitialSession, signOutAll } from './src/services/authService';
 
 // ─── App Step State Machine ───────────────────────────────────────────────────
-// loading   → determine where to go on boot
+// loading    → determine where to go on boot
 // onboarding → marketing slides (first launch ONLY, unauthenticated)
 // auth       → sign-in screen (Google only)
 // setup      → account setup wizard (new users after Google sign-in)
+// photos     → photo upload screen (1 profile photo + up to 3 extra)
 // main       → full app (authenticated + onboarding complete)
-export type AppStep = 'loading' | 'onboarding' | 'auth' | 'setup' | 'main';
+export type AppStep = 'loading' | 'onboarding' | 'auth' | 'setup' | 'photos' | 'main';
 
 // Register background FCM handler immediately on app boot
 setupFCMBackgroundHandler();
@@ -72,20 +75,25 @@ function App(): React.JSX.Element {
   const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
   const [notificationsModalVisible, setNotificationsModalVisible] = useState(false);
 
-  // ── Boot: resolve initial step ──────────────────────────────────────────────
+  // ── Boot: resolve initial step & permissions ─────────────────────────────
   useEffect(() => {
     const resolveInitialStep = async () => {
       try {
+        // Request all runtime permissions on app boot (camera, mic, location, storage)
+        requestAllPermissions();
+
         // 1. Validate session via Keychain → GET /auth/me
         const session = await checkInitialSession();
 
         if (session.authenticated && session.user) {
           setCurrentUser(session.user);
-          // Authenticated — route based on onboarding completion
-          if (session.onboardingComplete) {
+          const step = session.user?.onboardingStep;
+
+          if (session.onboardingComplete || step === 'completed') {
             setCurrentStep('main');
+          } else if (step === 'photos') {
+            setCurrentStep('photos');
           } else {
-            // Logged in but hasn't finished setup (e.g. app crashed mid-setup)
             setCurrentStep('setup');
           }
           return;
@@ -146,11 +154,10 @@ function App(): React.JSX.Element {
   // Google sign-in succeeded
   const handleAuthSuccess = (result: { user: any; isNewUser: boolean; onboardingComplete: boolean }) => {
     setCurrentUser(result.user);
+    const step = result.user?.onboardingStep;
 
-    if (result.onboardingComplete) {
-      // Existing user with completed setup → straight to app
+    if (result.onboardingComplete || step === 'completed') {
       setCurrentStep('main');
-
       setTimeout(() => {
         setToast({
           title: 'Welcome back! 💖',
@@ -158,14 +165,21 @@ function App(): React.JSX.Element {
           icon: '⚡',
         });
       }, 600);
+    } else if (step === 'photos') {
+      setCurrentStep('photos');
     } else {
-      // New user OR incomplete setup → account setup wizard
       setCurrentStep('setup');
     }
   };
 
-  // Setup wizard complete → go to main
+  // Setup wizard complete → go to photo upload step
   const handleSetupComplete = (updatedUser: any) => {
+    setCurrentUser(updatedUser ?? currentUser);
+    setCurrentStep('photos');
+  };
+
+  // Photo upload step complete → go to main app
+  const handlePhotosComplete = (updatedUser: any) => {
     setCurrentUser(updatedUser ?? currentUser);
     setCurrentStep('main');
 
@@ -221,6 +235,14 @@ function App(): React.JSX.Element {
           />
         )}
 
+        {/* ── Photo Upload Step ── */}
+        {currentStep === 'photos' && (
+          <PhotoUploadScreen
+            user={currentUser}
+            onComplete={handlePhotosComplete}
+          />
+        )}
+
         {/* ── Main App ── */}
         {currentStep === 'main' && (
           <SafeAreaView style={styles.safeArea}>
@@ -245,7 +267,11 @@ function App(): React.JSX.Element {
               {activeTab === 'chat' && <ChatScreen />}
 
               {activeTab === 'profile' && (
-                <ProfileScreen user={currentUser} onLogout={handleLogout} />
+                <ProfileScreen
+                  user={currentUser}
+                  onLogout={handleLogout}
+                  onUserUpdate={(updated) => setCurrentUser(updated)}
+                />
               )}
             </View>
 

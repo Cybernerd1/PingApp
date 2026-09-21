@@ -258,22 +258,36 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ user, onComplete }) =>
       const year = YEARS[yearIdx];
       const dateOfBirth = `${year}-${month}-${day}`;
 
-      // 1. Save profile info + DOB
-      const res = await apiClient.post('/onboarding/profile', {
+      const profilePayload = {
         name: name.trim(),
         username: username.trim().toLowerCase(),
         dateOfBirth,
         gender,
         interestedIn: ['everyone'],
         about: about.trim() || undefined,
-      });
+      };
 
-      // 2. Set backup password
-      await apiClient.post('/auth/set-password', { password });
+      console.log('\n[SetupScreen] ── POST /onboarding/profile ──────────────────');
+      console.log('[SetupScreen] Payload:', JSON.stringify(profilePayload, null, 2));
+
+      // 1. Save profile info + DOB
+      const res = await apiClient.post('/onboarding/profile', profilePayload);
+
+      console.log('[SetupScreen] /onboarding/profile status:', res.status);
+      console.log('[SetupScreen] /onboarding/profile data:', JSON.stringify(res.data, null, 2));
 
       const updatedUser = res.data?.data?.user;
+      console.log('[SetupScreen] onboardingCompleted in response:', updatedUser?.onboardingCompleted);
+
+      console.log('\n[SetupScreen] ── POST /auth/set-password ───────────────────');
+      // 2. Set backup password
+      const pwRes = await apiClient.post('/auth/set-password', { password });
+      console.log('[SetupScreen] /auth/set-password status:', pwRes.status);
+
+      console.log('[SetupScreen] ── Setup complete, calling onComplete ─────────\n');
       onComplete(updatedUser ?? user);
     } catch (err: any) {
+      console.error('[SetupScreen] Setup FAILED:', err?.response?.status, JSON.stringify(err?.response?.data));
       const msg =
         err?.response?.data?.message ||
         err?.response?.data?.errors?.[0]?.message ||
@@ -283,6 +297,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ user, onComplete }) =>
       setLoading(false);
     }
   };
+
 
   const pwStrength = getStrength(password);
 

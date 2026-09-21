@@ -11,8 +11,9 @@ export const BASE_URL = ENV.API_URL;
  * Auth endpoints are always the first hit after a cold-start, so they get a longer timeout.
  */
 const ENDPOINT_TIMEOUTS: Record<string, number> = {
-  '/auth/verify': 60_000,   // Render cold-start: up to 60s on first wakeup
+  '/auth/verify': 60_000,        // Render cold-start: up to 60s on first wakeup
   '/auth/refresh': 30_000,
+  '/discovery/stack': 60_000,    // First request after cold-start can take 30-60s
 };
 
 // Default timeout for all other requests (30s — generous for a mobile app)
@@ -108,16 +109,25 @@ apiClient.interceptors.response.use(
     const config = error.config as CustomAxiosRequestConfig | undefined;
     const meta = config?._meta || { requestId: 'unknown', startTime: Date.now() };
     const durationMs = Date.now() - meta.startTime;
+    const urlPath = config?.url || '';
+    const status = (error.response?.status ?? 0);
+
+    // Silently suppress expected 404s on discovery endpoints — the app
+    // already falls back to mock/dummy data and these logs are pure noise.
+    const isExpected404 = status === 404 && urlPath.startsWith('/discovery/');
+    if (isExpected404) {
+      return Promise.reject(error);
+    }
 
     // Provide clearer diagnosis for common network failures
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       console.error(
-        `⏱️  [apiClient] REQUEST TIMED OUT after ${durationMs}ms for ${config?.url}.`,
+        `⏱️  [apiClient] REQUEST TIMED OUT after ${durationMs}ms for ${urlPath}.`,
         'The backend (Render free tier) may still be cold-starting — try again in 10s.',
       );
     } else if (!error.response) {
       console.error(
-        `📡 [apiClient] NO RESPONSE received for ${config?.url} (${durationMs}ms).`,
+        `📡 [apiClient] NO RESPONSE received for ${urlPath} (${durationMs}ms).`,
         'Error code:', error.code,
         '— Check device internet connection or backend reachability.',
       );
