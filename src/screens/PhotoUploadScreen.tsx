@@ -24,6 +24,7 @@ import { Typography, Radius, Spacing } from '../theme/typography';
 import { Button } from '../components/Button';
 import { CameraIcon, CloseIcon, UserIcon } from '../components/illustrations/Icons';
 import apiClient from '../services/apiClient';
+import { photosApi } from '../api/photos';
 import { requestCameraPermission } from '../services/permissionsService';
 import Svg, { Path, Circle } from 'react-native-svg';
 
@@ -181,14 +182,18 @@ export const PhotoUploadScreen: React.FC<PhotoUploadScreenProps> = ({ user, onCo
         }
       }
 
-      const res = await apiClient.post('/onboarding/photos', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const res = await photosApi.uploadPhotos(form);
 
-      onComplete(res.data?.data?.user ?? user);
+      if (res.status === 'error') {
+        setError(res.message || 'Upload failed. Please try again.');
+        setUploading(false);
+        return;
+      }
+
+      onComplete(user);
     } catch (err: any) {
       const msg =
-        err?.response?.data?.message || 'Upload failed. Please try again.';
+        err?.message || 'Upload failed. Please try again.';
       setError(msg);
     } finally {
       setUploading(false);

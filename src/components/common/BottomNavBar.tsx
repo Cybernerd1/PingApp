@@ -2,66 +2,86 @@ import React from 'react';
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { Typography, Radius } from '../../theme/typography';
-import { HomeIcon, ChatBubbleIcon, UserIcon } from '../illustrations/Icons';
+import { HomeIcon, ChatBubbleIcon, UserIcon, BellIcon } from '../illustrations/Icons';
 
-export type MainTabType = 'home' | 'chat' | 'profile';
+export type MainTabType = 'home' | 'chat' | 'notifications' | 'profile';
 
 interface BottomNavBarProps {
   activeTab: MainTabType;
   onTabSelect: (tab: MainTabType) => void;
   unreadChatCount?: number;
+  unreadNotificationCount?: number;
+}
+
+interface TabItem {
+  id: MainTabType;
+  label: string;
+  icon: (active: boolean) => React.ReactNode;
+  badge?: number;
 }
 
 export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   activeTab,
   onTabSelect,
-  unreadChatCount = 1,
+  unreadChatCount = 0,
+  unreadNotificationCount = 0,
 }) => {
+  const tabs: TabItem[] = [
+    {
+      id: 'home',
+      label: 'Home',
+      icon: (active) => <HomeIcon size={22} color={active ? Colors.magenta : Colors.textMuted} />,
+    },
+    {
+      id: 'chat',
+      label: 'Chats',
+      icon: (active) => (
+        <ChatBubbleIcon size={22} color={active ? Colors.magenta : Colors.textMuted} />
+      ),
+      badge: unreadChatCount,
+    },
+    {
+      id: 'notifications',
+      label: 'Activity',
+      icon: (active) => <BellIcon size={22} color={active ? Colors.magenta : Colors.textMuted} />,
+      badge: unreadNotificationCount,
+    },
+    {
+      id: 'profile',
+      label: 'Profile',
+      icon: (active) => <UserIcon size={22} color={active ? Colors.magenta : Colors.textMuted} />,
+    },
+  ];
+
   return (
     <View style={styles.navContainer}>
       <View style={styles.navInnerRow}>
-        {/* Home Tab */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => onTabSelect('home')}
-          style={[styles.tabButton, activeTab === 'home' && styles.activeTabButton]}
-        >
-          <HomeIcon size={20} color={activeTab === 'home' ? Colors.magenta : Colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'home' && styles.activeTabLabel]}>
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        {/* Chat Tab */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => onTabSelect('chat')}
-          style={[styles.tabButton, activeTab === 'chat' && styles.activeTabButton]}
-        >
-          <View style={styles.iconWrapper}>
-            <ChatBubbleIcon size={20} color={activeTab === 'chat' ? Colors.magenta : Colors.textMuted} />
-            {unreadChatCount > 0 && activeTab !== 'chat' && (
-              <View style={styles.chatBadge}>
-                <Text style={styles.chatBadgeText}>{unreadChatCount}</Text>
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              activeOpacity={0.8}
+              onPress={() => onTabSelect(tab.id)}
+              style={[styles.tabButton, isActive && styles.activeTabButton]}
+            >
+              <View style={styles.iconWrapper}>
+                {tab.icon(isActive)}
+                {/* Badge */}
+                {typeof tab.badge === 'number' && tab.badge > 0 && !isActive && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>
+                      {tab.badge > 9 ? '9+' : tab.badge}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <Text style={[styles.tabLabel, activeTab === 'chat' && styles.activeTabLabel]}>
-            Chat
-          </Text>
-        </TouchableOpacity>
-
-        {/* Profile Tab */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => onTabSelect('profile')}
-          style={[styles.tabButton, activeTab === 'profile' && styles.activeTabButton]}
-        >
-          <UserIcon size={20} color={activeTab === 'profile' ? Colors.magenta : Colors.textMuted} />
-          <Text style={[styles.tabLabel, activeTab === 'profile' && styles.activeTabLabel]}>
-            Profile
-          </Text>
-        </TouchableOpacity>
+              <Text style={[styles.tabLabel, isActive && styles.activeTabLabel]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
     </View>
   );
@@ -72,7 +92,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.cream,
     borderTopWidth: 1,
     borderTopColor: 'rgba(0,0,0,0.06)',
-    paddingHorizontal: 24,
+    paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 14,
   },
@@ -83,7 +103,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: Radius.pill,
     paddingVertical: 6,
-    paddingHorizontal: 8,
+    paddingHorizontal: 4,
     shadowColor: Colors.plum,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
@@ -92,23 +112,23 @@ const styles = StyleSheet.create({
   },
   tabButton: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
     borderRadius: Radius.pill,
-    gap: 8,
+    gap: 3,
   },
   activeTabButton: {
-    backgroundColor: 'rgba(232, 68, 122, 0.12)',
+    backgroundColor: 'rgba(232, 68, 122, 0.10)',
   },
   iconWrapper: {
     position: 'relative',
   },
   tabLabel: {
     ...Typography.body,
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '600',
     color: Colors.textMuted,
   },
@@ -116,7 +136,7 @@ const styles = StyleSheet.create({
     color: Colors.magenta,
     fontWeight: '800',
   },
-  chatBadge: {
+  badge: {
     position: 'absolute',
     top: -4,
     right: -6,
@@ -127,8 +147,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.white,
   },
-  chatBadgeText: {
+  badgeText: {
     color: Colors.white,
     fontSize: 9,
     fontWeight: '800',

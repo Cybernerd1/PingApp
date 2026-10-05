@@ -7,14 +7,12 @@ const path = require('path');
  *
  * @type {import('@react-native/metro-config').MetroConfig}
  */
+const defaultConfig = getDefaultConfig(__dirname);
+
 const config = {
   resolver: {
     /**
-     * RN 0.87 (bridgeless mode) removed the Paper renderer shim
-     * `react-native/Libraries/Renderer/shims/ReactNative`.
-     * Reanimated 3.x falls into the else-branch (isFabric() returns false
-     * in bridgeless mode) and requires that file, causing a bundle error.
-     * Alias it to the Fabric shim that still exists.
+     * RN 0.87 (bridgeless mode) renderer shim resolution
      */
     resolveRequest: (context, moduleName, platform) => {
       if (
@@ -28,9 +26,23 @@ const config = {
           type: 'sourceFile',
         };
       }
+      // Silence "not listed in exports" warning for RN private deep imports
+      // (used by @react-native/virtualized-lists).
+      if (
+        moduleName ===
+        'react-native/src/private/featureflags/ReactNativeFeatureFlags'
+      ) {
+        return {
+          filePath: path.resolve(
+            __dirname,
+            'node_modules/react-native/src/private/featureflags/ReactNativeFeatureFlags.js'
+          ),
+          type: 'sourceFile',
+        };
+      }
       return context.resolveRequest(context, moduleName, platform);
     },
   },
 };
 
-module.exports = mergeConfig(getDefaultConfig(__dirname), config);
+module.exports = mergeConfig(defaultConfig, config);

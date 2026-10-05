@@ -2,8 +2,11 @@ export * from './Button';
 export * from './Input';
 export * from './Tag';
 export * from './Header';
+export * from './CardStack';
+export * from './ExpandableProfileCard';
 export * from './common/PressableScale';
 export * from './common/SwipeableCardStack';
 export * from './modals/MatchModal';
 export * from './chat/ChatMessage';
 export * from './chat/TypingIndicator';
+

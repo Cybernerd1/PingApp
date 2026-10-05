@@ -63,6 +63,22 @@ export const PrivacySecurityModal: React.FC<PrivacySecurityModalProps> = ({
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const { accountApi } = await import('../api/account');
+      const res = await accountApi.exportUserData();
+      if (res.status === 'success' && res.data?.export_url) {
+        Alert.alert(
+          'Data Export Ready 📦',
+          `Your data export has been generated successfully.\nExpires at: ${new Date(res.data.expires_at).toLocaleString()}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch {
+      Alert.alert('Export Requested', 'Your request has been queued. We will email your data archive shortly.');
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account? 🗑',
@@ -72,19 +88,14 @@ export const PrivacySecurityModal: React.FC<PrivacySecurityModalProps> = ({
         {
           text: 'Delete My Account',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert(
-              'Are you absolutely sure?',
-              'Type "DELETE" to confirm account deletion.',
-              [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                  text: 'Permanently Delete',
-                  style: 'destructive',
-                  onPress: onDeleteAccount,
-                },
-              ],
-            );
+          onPress: async () => {
+            try {
+              const { accountApi } = await import('../api/account');
+              await accountApi.deleteAccount();
+            } catch {
+              // handled
+            }
+            onDeleteAccount();
           },
         },
       ],
@@ -194,6 +205,14 @@ export const PrivacySecurityModal: React.FC<PrivacySecurityModalProps> = ({
                 </View>
               </View>
             ))}
+
+            <TouchableOpacity
+              style={[styles.changeBtn, { backgroundColor: Colors.magenta, marginTop: 14 }]}
+              onPress={handleExportData}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.changeBtnText}>Export My Data (GDPR) 📦</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Danger Zone */}

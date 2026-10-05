@@ -17,14 +17,46 @@ import Animated, {
   runOnJS,
   Extrapolation,
 } from 'react-native-reanimated';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { Colors } from '../theme/colors';
-import { Radius, Typography } from '../theme/typography';
+import { Radius } from '../theme/typography';
 import { Tag } from './Tag';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
-const SWIPE_UP_THRESHOLD = -80;
 
+// Swipe thresholds
+const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.28;
+const SWIPE_UP_THRESHOLD = -100;  // must swipe clearly upward
+const SWIPE_UP_VELOCITY = -600;   // or fast fling upward
+
+// ─── Card dimensions ─────────────────────────────────────────────────────────
+const CARD_WIDTH = SCREEN_WIDTH * 0.92;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.67;
+
+// ─── Inline SVG icons ─────────────────────────────────────────────────────────
+const VerifiedSVG = () => (
+  <Svg width={11} height={11} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M20 6L9 17l-5-5"
+      stroke={Colors.white}
+      strokeWidth={3.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const PinSVG = ({ size = 11, color = Colors.white }: { size?: number; color?: string }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+      stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"
+    />
+    <Circle cx={12} cy={9} r={2.5} stroke={color} strokeWidth={2} />
+  </Svg>
+);
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 export interface CandidateProfile {
   id: string;
   username: string;
@@ -51,6 +83,147 @@ interface CardStackProps {
   onExpandProfile?: (candidate: CandidateProfile) => void;
 }
 
+// ─── Single swipeable card ────────────────────────────────────────────────────
+interface SwipeCardProps {
+  candidate: CandidateProfile;
+  photoIndices: Record<string, number>;
+  onPhotoTap: (direction: 'left' | 'right', candidateId: string) => void;
+  likeOpacity: Animated.SharedValue<number>;
+  nopeOpacity: Animated.SharedValue<number>;
+  superOpacity: Animated.SharedValue<number>;
+  cardStyle: any;
+  gesture: any;
+}
+
+const SwipeCard: React.FC<SwipeCardProps> = ({
+  candidate,
+  photoIndices,
+  onPhotoTap,
+  likeOpacity,
+  nopeOpacity,
+  superOpacity,
+  cardStyle,
+  gesture,
+}) => {
+  const currentPhotoIdx = photoIndices[candidate.id] ?? 0;
+  const photoUrl =
+    candidate.photos?.[currentPhotoIdx] ?? candidate.photos?.[0] ?? '';
+
+  const likeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(likeOpacity.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+  const nopeStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(nopeOpacity.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+  const superStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(superOpacity.value, [0, 1], [0, 1], Extrapolation.CLAMP),
+  }));
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <Animated.View style={[styles.card, cardStyle]}>
+        {/* Photo */}
+        <Image source={{ uri: photoUrl }} style={styles.cardImage} resizeMode="cover" />
+
+        {/* Photo tap areas */}
+        {candidate.photos.length > 1 && (
+          <>
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.photoTapLeft}
+              onPress={() => onPhotoTap('left', candidate.id)}
+            />
+            <TouchableOpacity
+              activeOpacity={1}
+              style={styles.photoTapRight}
+              onPress={() => onPhotoTap('right', candidate.id)}
+            />
+          </>
+        )}
+
+        {/* Photo segment indicators */}
+        {candidate.photos.length > 1 && (
+          <View style={styles.photoIndicators} pointerEvents="none">
+            {candidate.photos.map((_, i) => (
+              <View
+                key={i}
+                style={[styles.indicatorBar, i === currentPhotoIdx && styles.indicatorActive]}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Stamp overlays */}
+        <Animated.View style={[styles.stamp, styles.likeStamp, likeStyle]} pointerEvents="none">
+          <Text style={[styles.stampText, { color: Colors.like }]}>LIKE</Text>
+        </Animated.View>
+        <Animated.View style={[styles.stamp, styles.nopeStamp, nopeStyle]} pointerEvents="none">
+          <Text style={[styles.stampText, { color: Colors.pass }]}>NOPE</Text>
+        </Animated.View>
+        <Animated.View style={[styles.stamp, styles.superStamp, superStyle]} pointerEvents="none">
+          <Text style={[styles.stampText, { color: Colors.superlike }]}>SUPER</Text>
+        </Animated.View>
+
+        {/* Dark gradient */}
+        <View style={styles.gradientOverlay} pointerEvents="none" />
+
+        {/* New here badge */}
+        <View style={styles.newHereBadge} pointerEvents="none">
+          <View style={styles.newHereDot} />
+          <Text style={styles.newHereText}>New here</Text>
+        </View>
+
+        {/* Distance badge */}
+        <View style={styles.distanceBadge} pointerEvents="none">
+          <PinSVG size={11} color={Colors.white} />
+          <Text style={styles.distanceText}>{candidate.distanceKm} km</Text>
+        </View>
+
+        {/* Card footer */}
+        <View style={styles.cardFooter} pointerEvents="none">
+          <View style={styles.nameRow}>
+            <Text style={styles.nameText} numberOfLines={1}>
+              {candidate.username}
+              <Text style={styles.ageText}>, {candidate.age}</Text>
+            </Text>
+            <View style={styles.verifiedBadge}>
+              <VerifiedSVG />
+            </View>
+          </View>
+          {candidate.jobTitle ? (
+            <Text style={styles.jobText} numberOfLines={1}>
+              {candidate.jobTitle}
+            </Text>
+          ) : null}
+          <View style={styles.tagsRow}>
+            {candidate.interests.slice(0, 4).map((interest, i) => (
+              <Tag key={i} label={interest} />
+            ))}
+            {candidate.interests.length > 4 && (
+              <Tag label={`+${candidate.interests.length - 4}`} />
+            )}
+          </View>
+
+          {/* Swipe up hint */}
+          <View style={styles.swipeUpHint} pointerEvents="none">
+            <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M12 19V5M5 12l7-7 7 7"
+                stroke="rgba(255,255,255,0.7)"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text style={styles.swipeUpHintText}>Swipe up for full profile</Text>
+          </View>
+        </View>
+      </Animated.View>
+    </GestureDetector>
+  );
+};
+
+// ─── CardStack ────────────────────────────────────────────────────────────────
 export const CardStack: React.FC<CardStackProps> = ({
   candidates,
   onSwipe,
@@ -62,105 +235,120 @@ export const CardStack: React.FC<CardStackProps> = ({
 
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const likeOpacity = useSharedValue(0);
+  const nopeOpacity = useSharedValue(0);
+  const superOpacity = useSharedValue(0);
 
   useEffect(() => {
     setCurrentIndex(0);
     translateX.value = 0;
     translateY.value = 0;
+    likeOpacity.value = 0;
+    nopeOpacity.value = 0;
+    superOpacity.value = 0;
   }, [candidates]);
 
-  const handleSwipeComplete = (action: 'like' | 'pass' | 'superlike') => {
-    const candidate = candidates[currentIndex];
-    const nextIndex = currentIndex + 1;
-
-    translateX.value = 0;
-    translateY.value = 0;
-    setCurrentIndex(nextIndex);
-
-    if (candidate) {
-      onSwipe(action, candidate);
-    }
-
-    if (nextIndex >= candidates.length) {
-      onEmpty();
-    }
+  const reset = () => {
+    translateX.value = withSpring(0, { damping: 16, stiffness: 180 });
+    translateY.value = withSpring(0, { damping: 16, stiffness: 180 });
+    likeOpacity.value = 0;
+    nopeOpacity.value = 0;
+    superOpacity.value = 0;
   };
 
-  const forceSwipe = (direction: 'right' | 'left' | 'up') => {
-    let targetX = 0;
-    let targetY = 0;
-    let action: 'like' | 'pass' | 'superlike' = 'like';
+  const completeSwipe = (action: 'like' | 'pass' | 'superlike') => {
+    const candidate = candidates[currentIndex];
+    const nextIndex = currentIndex + 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    likeOpacity.value = 0;
+    nopeOpacity.value = 0;
+    superOpacity.value = 0;
+    setCurrentIndex(nextIndex);
+    if (candidate) onSwipe(action, candidate);
+    if (nextIndex >= candidates.length) onEmpty();
+  };
 
-    if (direction === 'right') {
-      targetX = SCREEN_WIDTH * 1.5;
-      action = 'like';
-    } else if (direction === 'left') {
-      targetX = -SCREEN_WIDTH * 1.5;
-      action = 'pass';
-    } else if (direction === 'up') {
-      targetY = -SCREEN_HEIGHT * 1.5;
-      action = 'superlike';
+  const openFullProfile = () => {
+    const candidate = candidates[currentIndex];
+    if (candidate && onExpandProfile) {
+      onExpandProfile(candidate);
     }
-
-    translateX.value = withTiming(targetX, { duration: 250 });
-    translateY.value = withTiming(targetY, { duration: 250 }, (finished) => {
-      'worklet';
-      if (finished) {
-        runOnJS(handleSwipeComplete)(action);
-      }
-    });
   };
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
+      const { translationX: dx, translationY: dy } = event;
+
+      // If clearly swiping upward: don't move card, show super stamp slightly
+      if (dy < -40 && Math.abs(dy) > Math.abs(dx) * 1.5) {
+        translateX.value = 0;
+        translateY.value = 0;
+        superOpacity.value = Math.min(1, Math.abs(dy) / 120);
+        return;
+      }
+
+      // Horizontal swipe: move card + show stamps
+      translateX.value = dx;
+      translateY.value = dy * 0.2;
+      superOpacity.value = 0;
+
+      if (dx > 0) {
+        likeOpacity.value = Math.min(1, dx / SWIPE_THRESHOLD);
+        nopeOpacity.value = 0;
+      } else {
+        nopeOpacity.value = Math.min(1, Math.abs(dx) / SWIPE_THRESHOLD);
+        likeOpacity.value = 0;
+      }
     })
     .onEnd((event) => {
-      // Swipe Up -> Expand Full Profile Fullscreen
-      if (
-        event.translationY < SWIPE_UP_THRESHOLD &&
-        Math.abs(event.translationX) < SCREEN_WIDTH * 0.35
-      ) {
+      const { translationX: dx, translationY: dy, velocityX, velocityY } = event;
+
+      // ── Upward fling → open full profile modal ─────────────────────────────
+      // Only trigger if the swipe is clearly vertical (not accidentally diagonal)
+      const isUpwardFling =
+        (dy < SWIPE_UP_THRESHOLD || velocityY < SWIPE_UP_VELOCITY) &&
+        Math.abs(dy) > Math.abs(dx) * 1.5;
+
+      if (isUpwardFling) {
         translateX.value = withSpring(0, { damping: 16, stiffness: 180 });
         translateY.value = withSpring(0, { damping: 16, stiffness: 180 });
-        if (onExpandProfile && currentCandidate) {
-          runOnJS(onExpandProfile)(currentCandidate);
-        }
+        likeOpacity.value = 0;
+        nopeOpacity.value = 0;
+        superOpacity.value = 0;
+        runOnJS(openFullProfile)();
         return;
       }
 
-      // Swipe Right (Like)
-      if (event.translationX > SWIPE_THRESHOLD || event.velocityX > 500) {
+      // ── Swipe right → Like ────────────────────────────────────────────────
+      if (dx > SWIPE_THRESHOLD || velocityX > 500) {
         translateX.value = withTiming(SCREEN_WIDTH * 1.5, { duration: 250 }, (finished) => {
           'worklet';
-          if (finished) runOnJS(handleSwipeComplete)('like');
+          if (finished) runOnJS(completeSwipe)('like');
         });
         return;
       }
 
-      // Swipe Left (Pass)
-      if (event.translationX < -SWIPE_THRESHOLD || event.velocityX < -500) {
+      // ── Swipe left → Pass ────────────────────────────────────────────────
+      if (dx < -SWIPE_THRESHOLD || velocityX < -500) {
         translateX.value = withTiming(-SCREEN_WIDTH * 1.5, { duration: 250 }, (finished) => {
           'worklet';
-          if (finished) runOnJS(handleSwipeComplete)('pass');
+          if (finished) runOnJS(completeSwipe)('pass');
         });
         return;
       }
 
-      // Reset card position if swipe threshold is not met
-      translateX.value = withSpring(0, { damping: 16, stiffness: 180 });
-      translateY.value = withSpring(0, { damping: 16, stiffness: 180 });
+      // ── Not enough → snap back ────────────────────────────────────────────
+      runOnJS(reset)();
     });
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const rotate = interpolate(
       translateX.value,
       [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
-      [-18, 0, 18],
+      [-16, 0, 16],
       Extrapolation.CLAMP
     );
-
     return {
       transform: [
         { translateX: translateX.value },
@@ -170,254 +358,100 @@ export const CardStack: React.FC<CardStackProps> = ({
     };
   });
 
-  const likeStampStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [15, SWIPE_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
-    return { opacity };
-  });
-
-  const passStampStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateX.value,
-      [-SWIPE_THRESHOLD, -15],
-      [1, 0],
-      Extrapolation.CLAMP
-    );
-    return { opacity };
-  });
-
-  const superlikeStampStyle = useAnimatedStyle(() => {
-    const opacity = interpolate(
-      translateY.value,
-      [SWIPE_UP_THRESHOLD, -15],
-      [1, 0],
-      Extrapolation.CLAMP
-    );
-    return { opacity };
-  });
-
-  const nextCardAnimatedStyle = useAnimatedStyle(() => {
-    const dragDistance = Math.max(
-      Math.abs(translateX.value),
-      Math.abs(translateY.value)
-    );
-    const scale = interpolate(
-      dragDistance,
-      [0, SWIPE_THRESHOLD],
-      [0.94, 1],
-      Extrapolation.CLAMP
-    );
-    const opacity = interpolate(
-      dragDistance,
-      [0, SWIPE_THRESHOLD],
-      [0.85, 1],
-      Extrapolation.CLAMP
-    );
-
+  const nextCardStyle = useAnimatedStyle(() => {
+    const drag = Math.max(Math.abs(translateX.value), Math.abs(translateY.value));
     return {
-      transform: [{ scale }],
-      opacity,
+      transform: [{
+        scale: interpolate(drag, [0, SWIPE_THRESHOLD], [0.94, 1], Extrapolation.CLAMP),
+      }],
+      opacity: interpolate(drag, [0, SWIPE_THRESHOLD], [0.82, 1], Extrapolation.CLAMP),
     };
   });
 
-  const handlePhotoTap = (direction: 'left' | 'right') => {
-    const candidate = candidates[currentIndex];
+  const handlePhotoTap = (direction: 'left' | 'right', candidateId: string) => {
+    const candidate = candidates.find(c => c.id === candidateId);
     if (!candidate) return;
-    const currentPhoto = photoIndices[candidate.id] || 0;
-    const totalPhotos = candidate.photos.length;
-
-    if (direction === 'right' && currentPhoto < totalPhotos - 1) {
-      setPhotoIndices((prev) => ({ ...prev, [candidate.id]: currentPhoto + 1 }));
-    } else if (direction === 'left' && currentPhoto > 0) {
-      setPhotoIndices((prev) => ({ ...prev, [candidate.id]: currentPhoto - 1 }));
+    const cur = photoIndices[candidateId] ?? 0;
+    const total = candidate.photos.length;
+    if (direction === 'right' && cur < total - 1) {
+      setPhotoIndices(prev => ({ ...prev, [candidateId]: cur + 1 }));
+    } else if (direction === 'left' && cur > 0) {
+      setPhotoIndices(prev => ({ ...prev, [candidateId]: cur - 1 }));
     }
   };
 
   const currentCandidate = candidates[currentIndex];
   const nextCandidate = candidates[currentIndex + 1];
 
-  if (!currentCandidate || currentIndex >= candidates.length) {
-    return null;
-  }
-
-  const currentPhotoIdx = photoIndices[currentCandidate.id] || 0;
-  const currentPhotoUrl = currentCandidate.photos[currentPhotoIdx] || currentCandidate.photos[0];
+  if (!currentCandidate) return null;
 
   return (
     <View style={styles.container}>
-      {/* Background Next Card Preview */}
+      {/* ── Next card (peek) ── */}
       {nextCandidate && (
-        <Animated.View style={[styles.card, styles.nextCard, nextCardAnimatedStyle]}>
+        <Animated.View style={[styles.card, styles.nextCard, nextCardStyle]}>
           <Image
             source={{ uri: nextCandidate.photos[0] }}
             style={styles.cardImage}
+            resizeMode="cover"
           />
           <View style={styles.gradientOverlay} />
-          <View style={styles.cardContent}>
-            <Text style={styles.nameText}>
-              {nextCandidate.username}, {nextCandidate.age}
-            </Text>
+          <View style={styles.cardFooter} pointerEvents="none">
+            <View style={styles.nameRow}>
+              <Text style={styles.nameText}>
+                {nextCandidate.username}
+                <Text style={styles.ageText}>, {nextCandidate.age}</Text>
+              </Text>
+            </View>
           </View>
         </Animated.View>
       )}
 
-      {/* Top Active Card with Gesture Handler */}
-      <GestureDetector gesture={panGesture}>
-        <Animated.View style={[styles.card, cardAnimatedStyle]}>
-          <View style={styles.imageContainer}>
-            <Image source={{ uri: currentPhotoUrl }} style={styles.cardImage} />
-
-            {/* Tap areas for photo switching */}
-            {currentCandidate.photos.length > 1 && (
-              <>
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => handlePhotoTap('left')}
-                  style={styles.photoTapLeft}
-                />
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => handlePhotoTap('right')}
-                  style={styles.photoTapRight}
-                />
-
-                {/* Photo Segment Indicators */}
-                <View style={styles.photoIndicators} pointerEvents="none">
-                  {currentCandidate.photos.map((_, i) => (
-                    <View
-                      key={i}
-                      style={[
-                        styles.indicatorBar,
-                        i === currentPhotoIdx && styles.indicatorActive,
-                      ]}
-                    />
-                  ))}
-                </View>
-              </>
-            )}
-
-            {/* Stamp Overlays */}
-            <Animated.View style={[styles.stampContainer, styles.likeStamp, likeStampStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: Colors.like }]}>PING!</Text>
-            </Animated.View>
-
-            <Animated.View style={[styles.stampContainer, styles.passStamp, passStampStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: Colors.pass }]}>NOPE</Text>
-            </Animated.View>
-
-            <Animated.View style={[styles.stampContainer, styles.superlikeStamp, superlikeStampStyle]} pointerEvents="none">
-              <Text style={[styles.stampText, { color: Colors.magenta }]}>SUPER PING</Text>
-            </Animated.View>
-
-            {/* Dark Gradient Text Overlay */}
-            <View style={styles.gradientOverlay} pointerEvents="none" />
-
-            {/* Card Content Footer */}
-            <View style={styles.cardContent}>
-              <View style={styles.rowHeader}>
-                <Text style={styles.nameText}>
-                  {currentCandidate.username},{' '}
-                  <Text style={styles.ageText}>{currentCandidate.age}</Text>
-                </Text>
-                <View style={styles.headerRightBadgeGroup}>
-                  <View style={styles.distanceBadge}>
-                    <Text style={styles.distanceText}>📍 {currentCandidate.distanceKm} km</Text>
-                  </View>
-                  {onExpandProfile && (
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => onExpandProfile(currentCandidate)}
-                      style={styles.infoButton}
-                    >
-                      <Text style={styles.infoButtonText}>ℹ</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </View>
-
-              {currentCandidate.jobTitle ? (
-                <Text style={styles.jobText}>💼 {currentCandidate.jobTitle}</Text>
-              ) : null}
-
-              <Text style={styles.bioText} numberOfLines={2}>
-                {currentCandidate.bio}
-              </Text>
-
-              <View style={styles.tagsRow}>
-                {currentCandidate.interests.map((interest, idx) => (
-                  <Tag key={idx} label={interest} />
-                ))}
-              </View>
-            </View>
-          </View>
-        </Animated.View>
-      </GestureDetector>
-
-      {/* Floating Action Controls */}
-      <View style={styles.actionControls}>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => forceSwipe('left')}
-          style={[styles.actionBtn, styles.passBtn]}
-        >
-          <Text style={styles.btnIcon}>✖</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => forceSwipe('up')}
-          style={[styles.actionBtn, styles.superBtn]}
-        >
-          <Text style={styles.btnIcon}>⭐</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => forceSwipe('right')}
-          style={[styles.actionBtn, styles.likeBtn]}
-        >
-          <Text style={styles.btnIcon}>❤️</Text>
-        </TouchableOpacity>
-      </View>
+      {/* ── Top swipeable card ── */}
+      <SwipeCard
+        candidate={currentCandidate}
+        photoIndices={photoIndices}
+        onPhotoTap={handlePhotoTap}
+        likeOpacity={likeOpacity}
+        nopeOpacity={nopeOpacity}
+        superOpacity={superOpacity}
+        cardStyle={cardAnimatedStyle}
+        gesture={panGesture}
+      />
     </View>
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
+  // Card
   card: {
-    width: SCREEN_WIDTH * 0.92,
-    height: SCREEN_HEIGHT * 0.64,
-    borderRadius: Radius.card,
-    backgroundColor: Colors.white,
     position: 'absolute',
+    width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    borderRadius: Radius.card,
     overflow: 'hidden',
+    backgroundColor: Colors.plum,
     shadowColor: Colors.plum,
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 6,
+    shadowOpacity: 0.14,
+    shadowRadius: 14,
+    elevation: 8,
   },
   nextCard: {
-    zIndex: -1,
-  },
-  imageContainer: {
-    flex: 1,
-    position: 'relative',
+    zIndex: 1,
   },
   cardImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
+    ...StyleSheet.absoluteFillObject,
   },
+
+  // Photo navigation
   photoTapLeft: {
     position: 'absolute',
     top: 0,
@@ -445,155 +479,164 @@ const styles = StyleSheet.create({
   },
   indicatorBar: {
     flex: 1,
-    height: 4,
+    height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255,255,255,0.38)',
   },
   indicatorActive: {
     backgroundColor: Colors.white,
   },
+
+  // Stamps
+  stamp: {
+    position: 'absolute',
+    borderWidth: 3.5,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 4,
+    zIndex: 20,
+  },
+  likeStamp: {
+    top: 52,
+    left: 22,
+    borderColor: Colors.like,
+    transform: [{ rotate: '-15deg' }],
+  },
+  nopeStamp: {
+    top: 52,
+    right: 22,
+    borderColor: Colors.pass,
+    transform: [{ rotate: '15deg' }],
+  },
+  superStamp: {
+    top: 90,
+    alignSelf: 'center',
+    left: CARD_WIDTH * 0.29,
+    borderColor: Colors.superlike,
+  },
+  stampText: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+
+  // Gradient overlay
   gradientOverlay: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 220,
-    backgroundColor: 'rgba(43, 22, 32, 0.65)',
+    height: 260,
+    backgroundColor: 'rgba(38, 16, 28, 0.72)',
   },
-  cardContent: {
+
+  // Badges
+  newHereBadge: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+    zIndex: 15,
+  },
+  newHereDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: Colors.magenta,
+  },
+  newHereText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.plum,
+  },
+  distanceBadge: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: Radius.pill,
+    zIndex: 15,
+  },
+  distanceText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.white,
+  },
+
+  // Footer
+  cardFooter: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 18,
     zIndex: 15,
   },
-  rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  nameText: {
-    ...Typography.heading,
-    fontSize: 26,
-    color: Colors.white,
-    fontWeight: '700',
-  },
-  ageText: {
-    fontWeight: '400',
-  },
-  headerRightBadgeGroup: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+    marginBottom: 3,
   },
-  distanceBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: Radius.pill,
-  },
-  distanceText: {
-    ...Typography.caption,
+  nameText: {
+    fontSize: 26,
+    fontWeight: '700',
     color: Colors.white,
-    fontWeight: '600',
+    flexShrink: 1,
   },
-  infoButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  ageText: {
+    fontWeight: '400',
+    color: 'rgba(255,255,255,0.88)',
+  },
+  verifiedBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.magenta,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.5)',
-  },
-  infoButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '700',
+    flexShrink: 0,
   },
   jobText: {
-    ...Typography.caption,
+    fontSize: 13,
     color: Colors.blush,
-    marginBottom: 6,
-  },
-  bioText: {
-    ...Typography.body,
-    color: Colors.white,
-    fontSize: 14,
-    marginBottom: 12,
-    lineHeight: 19,
+    fontWeight: '500',
+    marginBottom: 7,
   },
   tagsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 4,
   },
-  stampContainer: {
-    position: 'absolute',
-    top: 40,
-    borderWidth: 4,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-    zIndex: 20,
-  },
-  likeStamp: {
-    left: 30,
-    borderColor: Colors.like,
-    transform: [{ rotate: '-15deg' }],
-  },
-  passStamp: {
-    right: 30,
-    borderColor: Colors.pass,
-    transform: [{ rotate: '15deg' }],
-  },
-  superlikeStamp: {
-    top: 100,
-    alignSelf: 'center',
-    borderColor: Colors.magenta,
-  },
-  stampText: {
-    fontSize: 28,
-    fontWeight: '900',
-  },
-  actionControls: {
-    position: 'absolute',
-    bottom: 24,
+
+  // Swipe up hint
+  swipeUpHint: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 20,
-    zIndex: 30,
-  },
-  actionBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: Colors.plum,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    gap: 5,
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.15)',
   },
-  passBtn: {
-    borderWidth: 2,
-    borderColor: Colors.coral,
-  },
-  superBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 2,
-    borderColor: Colors.magenta,
-  },
-  likeBtn: {
-    backgroundColor: Colors.magenta,
-  },
-  btnIcon: {
-    fontSize: 24,
+  swipeUpHintText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.65)',
+    fontWeight: '500',
   },
 });

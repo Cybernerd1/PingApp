@@ -15,7 +15,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 import { Typography, Radius } from '../theme/typography';
 import { ConfirmDialog } from '../components/modals/ConfirmDialog';
+import { ReportModal } from '../components/modals/ReportModal';
 import { BackArrowIcon, MoreIcon, SendIcon } from '../components/illustrations/Icons';
+import { useMatches } from '../hooks/useMatches';
+import { useChats } from '../hooks/useChats';
+import { useSocket } from '../hooks/useSocket';
+import { useSafety } from '../hooks/useSafety';
 
 export interface ChatMessage {
   id: string;
@@ -122,27 +127,87 @@ const DUMMY_CONVERSATIONS: MatchConversation[] = [
 ];
 
 export const ChatScreen: React.FC = () => {
+  const { matches, unmatch } = useMatches();
+  const { chats, uploadMedia } = useChats();
+  const { isConnected, sendMessage, sendTyping, onSocketEvent } = useSocket();
+  const { reportUser, blockUser } = useSafety();
+
   const [conversations, setConversations] = useState<MatchConversation[]>(DUMMY_CONVERSATIONS);
   const [activeConv, setActiveConv] = useState<MatchConversation | null>(null);
   const [inputText, setInputText] = useState('');
   const [unmatchTarget, setUnmatchTarget] = useState<MatchConversation | null>(null);
+  const [reportTarget, setReportTarget] = useState<MatchConversation | null>(null);
 
   const flatListRef = useRef<FlatList>(null);
+
+  // Sync API matches & chats to state when available
+  React.useEffect(() => {
+    if (chats && chats.length > 0) {
+      const apiConvs: MatchConversation[] = chats.map((c) => ({
+        id: c.chat_id,
+        candidateId: c.matched_user_id,
+        username: c.matched_user_name,
+        avatar: c.matched_user_photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb',
+        lastMessage: 'Tap to start conversation',
+        time: 'Active',
+        unread: false,
+        messages: [],
+      }));
+      setConversations(apiConvs);
+    }
+  }, [chats]);
+
+  // Subscribe to real-time socket events
+  React.useEffect(() => {
+    const unsubMessage = onSocketEvent('receive_message', (data: any) => {
+      if (data && data.chat_id) {
+        const incomingMsg: ChatMessage = {
+          id: data.message_id || `msg_${Date.now()}`,
+          senderId: data.sender_id,
+          text: data.content,
+          timestamp: 'Just now',
+          isUser: false,
+        };
+
+        setActiveConv((curr) => {
+          if (curr && curr.id === data.chat_id) {
+            return {
+              ...curr,
+              lastMessage: data.content,
+              messages: [...curr.messages, incomingMsg],
+            };
+          }
+          return curr;
+        });
+      }
+    });
+
+    return () => {
+      unsubMessage();
+    };
+  }, [onSocketEvent]);
 
   const handleSendMessage = () => {
     if (!inputText.trim() || !activeConv) return;
 
+    const textToSend = inputText.trim();
+
+    // Emit Socket event if connected
+    if (isConnected) {
+      sendMessage(activeConv.id, textToSend, 'text');
+    }
+
     const newMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
       senderId: 'user',
-      text: inputText.trim(),
+      text: textToSend,
       timestamp: 'Just now',
       isUser: true,
     };
 
     const updatedConv = {
       ...activeConv,
-      lastMessage: inputText.trim(),
+      lastMessage: textToSend,
       time: 'Just now',
       messages: [...activeConv.messages, newMsg],
     };
@@ -152,39 +217,40 @@ export const ChatScreen: React.FC = () => {
       prev.map((c) => (c.id === activeConv.id ? updatedConv : c))
     );
     setInputText('');
-
-    // Simulate dummy reply after 1.5s
-    setTimeout(() => {
-      const replyMsg: ChatMessage = {
-        id: `msg_reply_${Date.now()}`,
-        senderId: activeConv.candidateId,
-        text: `That sounds fantastic! Can't wait ✨😊`,
-        timestamp: 'Just now',
-        isUser: false,
-      };
-
-      setActiveConv((curr) => {
-        if (curr && curr.id === activeConv.id) {
-          const withReply = {
-            ...curr,
-            lastMessage: replyMsg.text,
-            messages: [...curr.messages, replyMsg],
-          };
-          return withReply;
-        }
-        return curr;
-      });
-    }, 1500);
   };
 
-  const handleConfirmUnmatch = () => {
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    if (activeConv && isConnected && text.length > 0) {
+      sendTyping(activeConv.id);
+    }
+  };
+
+  const handleConfirmUnmatch = async () => {
     if (unmatchTarget) {
+      try {
+        await unmatch(unmatchTarget.id);
+      } catch {
+        // handled fallback
+      }
       setConversations((prev) => prev.filter((c) => c.id !== unmatchTarget.id));
       if (activeConv?.id === unmatchTarget.id) {
         setActiveConv(null);
       }
     }
     setUnmatchTarget(null);
+  };
+
+  const handleBlockUser = async () => {
+    if (activeConv) {
+      try {
+        await blockUser(activeConv.candidateId);
+      } catch {
+        // handled fallback
+      }
+      setConversations((prev) => prev.filter((c) => c.id !== activeConv.id));
+      setActiveConv(null);
+    }
   };
 
   return (

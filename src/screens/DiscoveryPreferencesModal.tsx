@@ -14,6 +14,7 @@ import { Colors } from '../theme/colors';
 import { Typography, Radius } from '../theme/typography';
 import { BackArrowIcon, SettingsIcon } from '../components/illustrations/Icons';
 import Svg, { Path } from 'react-native-svg';
+import { preferencesApi } from '../api/preferences';
 
 const STORAGE_KEY = '@ping_discovery_prefs';
 
@@ -129,6 +130,19 @@ export const DiscoveryPreferencesModal: React.FC<DiscoveryPreferencesModalProps>
   const save = async (next: DiscoveryPrefs) => {
     setPrefs(next);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    try {
+      const interested_in: ('male' | 'female')[] = [];
+      if (next.showMen || next.showEveryone) interested_in.push('male');
+      if (next.showWomen || next.showEveryone) interested_in.push('female');
+      await preferencesApi.savePreferences({
+        interested_in: interested_in.length ? interested_in : ['male', 'female'],
+        min_age: next.ageMin,
+        max_age: next.ageMax,
+        max_distance_km: next.distanceKm,
+      });
+    } catch {
+      // local save preserved
+    }
   };
 
   const update = <K extends keyof DiscoveryPrefs>(key: K, val: DiscoveryPrefs[K]) =>

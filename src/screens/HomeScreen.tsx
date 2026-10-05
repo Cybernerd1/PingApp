@@ -14,6 +14,9 @@ import { Button } from '../components/Button';
 import { MatchModal } from '../components/modals/MatchModal';
 import { FullProfileModal } from '../components/modals/FullProfileModal';
 import apiClient from '../services/apiClient';
+import { discoverApi } from '../api/discover';
+import { interactionsApi } from '../api/interactions';
+import { DiscoverCandidate } from '../api/types';
 
 // Rich dating candidate profiles matching Ping design standards
 const MOCK_CANDIDATES: CandidateProfile[] = [
@@ -162,14 +165,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
   const fetchDiscoveryStack = async () => {
     setLoading(true);
     try {
-      const response = await apiClient.get('/discovery/stack');
-      if (response.data?.data?.candidates?.length) {
-        setCandidates(response.data.data.candidates);
+      const res = await discoverApi.getDiscoverStack(20);
+      if (res.status === 'success' && res.data?.users?.length) {
+        const mapped = res.data.users.map((c: DiscoverCandidate) => ({
+          id: c.user_id,
+          username: c.full_name,
+          age: c.age || 22,
+          bio: c.bio || '',
+          photos: c.photos?.map(p => p.photo_url).filter(Boolean) || [
+            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=800&q=80',
+          ],
+          interests: c.interests || [],
+          distanceKm: c.distance_km || 1.5,
+          location: 'Nearby',
+        }));
+        setCandidates(mapped);
       } else {
         setCandidates(MOCK_CANDIDATES);
       }
     } catch {
-      // Fallback to rich mock candidate stack for offline/development testing
       setCandidates(MOCK_CANDIDATES);
     } finally {
       setLoading(false);
@@ -185,17 +199,17 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onOpenChat }) => {
     candidate: CandidateProfile
   ) => {
     try {
-      const res = await apiClient.post('/discovery/swipe', {
-        targetUserId: candidate.id,
-        action: action === 'superlike' ? 'like' : action,
+      const swipeAction = action === 'pass' ? 'dislike' : 'like';
+      const res = await interactionsApi.swipe({
+        user_id: candidate.id,
+        action: swipeAction,
       });
 
-      if (res.data?.data?.matched) {
+      if (res.status === 'success' && res.data?.is_match) {
         setMatchedCandidate(candidate);
         setMatchModalVisible(true);
       }
     } catch {
-      // Simulate instant match on like/superlike for demo
       if (action === 'like' || action === 'superlike') {
         if (Math.random() > 0.4) {
           setMatchedCandidate(candidate);

@@ -3,7 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --active-arch-only",
+    "dev": "adb reverse tcp:8081 tcp:8081 && react-native start",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
@@ -12,10 +13,12 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^1.23.1",
+    "@react-native-community/geolocation": "^3.4.0",
     "@react-native-firebase/app": "^21.8.0",
     "@react-native-firebase/auth": "^21.8.0",
     "@react-native-google-signin/google-signin": "^16.1.5",
     "@react-native/new-app-screen": "0.87.1",
+    "@tanstack/react-query": "^5.103.2",
     "axios": "^1.20.0",
     "react": "19.2.3",
     "react-native": "0.87.1",

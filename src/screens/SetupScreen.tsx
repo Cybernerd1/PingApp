@@ -17,6 +17,7 @@ import { Colors } from '../theme/colors';
 import { Typography, Radius, Spacing } from '../theme/typography';
 import { Button } from '../components/Button';
 import apiClient from '../services/apiClient';
+import { profileApi } from '../api/profile';
 
 const { width: SW } = Dimensions.get('window');
 
@@ -258,26 +259,33 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ user, onComplete }) =>
       const year = YEARS[yearIdx];
       const dateOfBirth = `${year}-${month}-${day}`;
 
+      // Format gender to match spec enum ('male' | 'female' | 'other')
+      const specGender: 'male' | 'female' | 'other' =
+        gender === 'man' ? 'male' : gender === 'woman' ? 'female' : 'other';
+
       const profilePayload = {
-        name: name.trim(),
-        username: username.trim().toLowerCase(),
-        dateOfBirth,
-        gender,
-        interestedIn: ['everyone'],
-        about: about.trim() || undefined,
+        full_name: name.trim(),
+        phone: user?.phone || '+910000000000',
+        email: user?.email || `${username.trim().toLowerCase()}@ping.app`,
+        birthdate: dateOfBirth,
+        gender: specGender,
+        bio: about.trim() || 'Excited to meet new people on Ping!',
       };
 
-      console.log('\n[SetupScreen] ── POST /onboarding/profile ──────────────────');
+      console.log('\n[SetupScreen] ── POST /users/profile ──────────────────');
       console.log('[SetupScreen] Payload:', JSON.stringify(profilePayload, null, 2));
 
-      // 1. Save profile info + DOB
-      const res = await apiClient.post('/onboarding/profile', profilePayload);
+      // 1. Save profile info via profileApi
+      const res = await profileApi.createProfile(profilePayload);
 
-      console.log('[SetupScreen] /onboarding/profile status:', res.status);
-      console.log('[SetupScreen] /onboarding/profile data:', JSON.stringify(res.data, null, 2));
+      if (res.status === 'error') {
+        setError(res.message || 'Failed to create profile.');
+        setLoading(false);
+        return;
+      }
 
-      const updatedUser = res.data?.data?.user;
-      console.log('[SetupScreen] onboardingCompleted in response:', updatedUser?.onboardingCompleted);
+      console.log('[SetupScreen] /users/profile data:', JSON.stringify(res.data, null, 2));
+      const updatedUser = res.data?.profile;
 
       console.log('\n[SetupScreen] ── POST /auth/set-password ───────────────────');
       // 2. Set backup password
