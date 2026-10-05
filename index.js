@@ -10,7 +10,7 @@ import { AppRegistry } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { name as appName } from './app.json';
-import { ErrorBoundary } from './src/components/common/ErrorBoundary';
+import { ErrorBoundary } from './src/ui/ErrorBoundary';
 
 const queryClient = new QueryClient({
   defaultOptions: {

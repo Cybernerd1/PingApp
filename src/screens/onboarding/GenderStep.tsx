@@ -3,7 +3,7 @@ import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { Radius, Shadow, Typography } from '../../theme/typography';
 import { Check, Chip } from '../../ui';
-import { Portrait, PortraitKind } from '../../components/illustrations/PeopleBubbles';
+import { Portrait, PortraitKind } from '../../ui/illustrations/PeopleBubbles';
 import { GenderType } from '../../api/types';
 import { StepLayout } from './StepLayout';
 

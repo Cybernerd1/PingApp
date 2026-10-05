@@ -6,3 +6,8 @@ export * from './StepHeader';
 export * from './FieldRow';
 export * from './Stepper';
 export * from './icons';
+export * from './Avatar';
+export * from './IconButton';
+export * from './Sheet';
+export * from './EmptyState';
+export * from './ListRow';

@@ -5,7 +5,7 @@ import { profileApi } from '../../api/profile';
 import { locationApi } from '../../api/location';
 import { GenderType, LocationCoordinates, UserProfile } from '../../api/types';
 import { GoogleIdentity, ONBOARDING_ORDER, OnboardingStep } from '../../session/session';
-import { getCurrentCoords, LocationPermissionDenied } from '../../services/locationService';
+import { getCurrentCoords, LocationPermissionDenied, LocationUnavailable } from '../../native/location';
 import { GenderStep } from './GenderStep';
 import { BasicsStep, DobParts, dobToIso } from './BasicsStep';
 import { InterestsStep } from './InterestsStep';
@@ -73,7 +73,9 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
       setLocationError(
         e instanceof LocationPermissionDenied
           ? 'Location permission is off. Enable it in Settings to see people nearby.'
-          : 'Couldn’t get your location. Make sure GPS is on and try again.',
+          : e instanceof LocationUnavailable
+            ? e.message
+            : 'Couldn’t get your location. Make sure GPS is on and try again.',
       );
     } finally {
       setLocating(false);

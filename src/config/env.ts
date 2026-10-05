@@ -15,9 +15,7 @@ const BACKEND_URL = 'https://pingbackend-qcqv.onrender.com';
 
 export const ENV = {
   BACKEND_URL,
-  /** Legacy (un-versioned) routes — still used by not-yet-migrated screens. */
-  API_URL: `${BACKEND_URL}/api`,
-  /** Spec-compliant v1 routes — used by src/api/*. */
+  /** All REST calls go through src/api/* against /api/v1. */
   API_V1_URL: `${BACKEND_URL}/api/v1`,
   // Web Client ID (client_type: 3) from android/app/google-services.json
   GOOGLE_WEB_CLIENT_ID: '510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com',

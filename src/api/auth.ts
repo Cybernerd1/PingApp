@@ -6,6 +6,7 @@ import {
   AuthTokenData,
   GoogleAuthRequest,
   AppleAuthRequest,
+  PasswordLoginRequest,
 } from './types';
 
 export const authApi = {
@@ -63,6 +64,15 @@ export const authApi = {
       method: 'POST',
       url: '/auth/login/resend-otp',
       data: { username, session },
+    });
+  },
+
+  /** Email + password (demo / test account). */
+  loginWithPassword: async (payload: PasswordLoginRequest): Promise<ApiResponse<AuthTokenData>> => {
+    return apiRequest<AuthTokenData>({
+      method: 'POST',
+      url: '/auth/login/password',
+      data: payload,
     });
   },
 

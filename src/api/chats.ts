@@ -18,11 +18,13 @@ export const chatsApi = {
   },
 
   getMessages: async (
-    chatId: string
+    chatId: string,
+    limit: number = 100,
+    offset: number = 0
   ): Promise<ApiResponse<{ chat_id: string; messages: ChatMessage[]; total: number }>> => {
     return apiRequest<{ chat_id: string; messages: ChatMessage[]; total: number }>({
       method: 'GET',
-      url: `/chats/${chatId}/messages`,
+      url: `/chats/${chatId}/messages?limit=${limit}&offset=${offset}`,
     });
   },
 
@@ -34,9 +36,7 @@ export const chatsApi = {
       method: 'POST',
       url: `/chats/${chatId}/media`,
       data: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      timeout: 60_000,
     });
   },
 };

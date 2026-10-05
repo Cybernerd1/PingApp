@@ -17,6 +17,8 @@ import { profileApi } from '../api/profile';
 import { preferencesApi } from '../api/preferences';
 import { UserProfile } from '../api/types';
 import { tokenStore } from './tokenStore';
+import { devicesApi } from '../api/devices';
+import { getFCMToken } from '../native/fcm';
 
 export type OnboardingStep = 'gender' | 'basics' | 'interests' | 'photos' | 'preferences';
 
@@ -75,9 +77,33 @@ export async function signInWithGoogle(): Promise<SessionState> {
   const res = await authApi.googleCallback({ id_token: idToken });
   if (res.status === 'error') {
     await GoogleSignin.signOut().catch(() => {});
+    if (res.httpStatus === 404) {
+      // The deployed server predates the v1 API (e.g. Render still on an old branch).
+      throw new Error('Ping’s server is out of date — deploy the latest backend (with /api/v1) and try again.');
+    }
+    if (res.code === 'UNAUTHORIZED') {
+      throw new Error('Google sign-in was rejected by the server. Check GOOGLE_CLIENT_ID on the backend matches the app’s web client ID.');
+    }
     throw new Error(res.message);
   }
 
+  await tokenStore.set(res.data.access_token, res.data.refresh_token);
+  return resolveSession();
+}
+
+/** Demo / test account login: POST /auth/login/password. */
+export const DEMO_CREDENTIALS = { email: 'demo@ping.app', password: 'Demo@1234' } as const;
+
+export async function signInWithPassword(email: string, password: string): Promise<SessionState> {
+  const res = await authApi.loginWithPassword({ email: email.trim(), password });
+  if (res.status === 'error') {
+    if (res.httpStatus === 404) {
+      throw new Error('Ping’s server doesn’t support email sign-in yet — deploy the latest backend and run the migrations.');
+    }
+    if (res.code === 'UNAUTHORIZED') throw new Error('Incorrect email or password.');
+    throw new Error(res.message);
+  }
+  identity = { email: email.trim().toLowerCase(), name: null, photo: null };
   await tokenStore.set(res.data.access_token, res.data.refresh_token);
   return resolveSession();
 }
@@ -131,6 +157,9 @@ export function getIdentity(): GoogleIdentity | null {
 }
 
 export async function signOut(): Promise<void> {
+  // Stop pushes for this account on this phone (needs the token, so before logout).
+  const pushToken = await getFCMToken().catch(() => null);
+  if (pushToken) await devicesApi.unregister(pushToken).catch(() => undefined);
   await authApi.logout().catch(() => undefined);
   await tokenStore.clear();
   identity = null;

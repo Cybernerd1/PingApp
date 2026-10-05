@@ -16,9 +16,7 @@ export const photosApi = {
       method: 'POST',
       url: '/users/photos',
       data: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      timeout: 90_000,
     });
   },
 

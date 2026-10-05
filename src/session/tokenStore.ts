@@ -3,12 +3,9 @@
  *
  * - Persisted in Keychain (services/authStorage) — never AsyncStorage.
  * - Cached in memory so the axios interceptor doesn't hit Keychain per request.
- * - Mirrors the access token into the legacy services/apiClient so screens that
- *   still call legacy /api/* routes keep working during the migration.
  * - Emits 'expired' when a refresh fails so App.tsx can route back to Welcome.
  */
-import { saveTokens, getTokens, clearTokens } from '../services/authStorage';
-import { setAuthToken as setLegacyAuthToken } from '../services/apiClient';
+import { saveTokens, getTokens, clearTokens } from './authStorage';
 
 type Listener = () => void;
 
@@ -23,7 +20,6 @@ export const tokenStore = {
       const stored = await getTokens();
       accessToken = stored?.accessToken ?? null;
       refreshToken = stored?.refreshToken ?? null;
-      setLegacyAuthToken(accessToken);
       hydrated = true;
     }
     return !!accessToken;
@@ -36,7 +32,6 @@ export const tokenStore = {
     accessToken = access;
     refreshToken = refresh;
     hydrated = true;
-    setLegacyAuthToken(access);
     await saveTokens(access, refresh);
   },
 
@@ -44,7 +39,6 @@ export const tokenStore = {
     accessToken = null;
     refreshToken = null;
     hydrated = true;
-    setLegacyAuthToken(null);
     await clearTokens();
   },
 

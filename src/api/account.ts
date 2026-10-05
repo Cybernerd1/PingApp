@@ -1,25 +1,13 @@
 import { apiRequest } from './client';
-import { ApiResponse, ProfileDataExport } from './types';
+import { ProfileDataExport } from './types';
 
 export const accountApi = {
-  deleteProfile: async (): Promise<ApiResponse<{ deleted: boolean }>> => {
-    return apiRequest<{ deleted: boolean }>({
-      method: 'DELETE',
-      url: '/users/profile',
-    });
-  },
+  /** Soft-delete: hides the dating profile; signing in again restores it. */
+  deleteProfile: () => apiRequest<{ deleted: boolean }>({ method: 'DELETE', url: '/users/profile' }),
 
-  deleteAccount: async (): Promise<ApiResponse<{ deleted: boolean }>> => {
-    return apiRequest<{ deleted: boolean }>({
-      method: 'DELETE',
-      url: '/users/account',
-    });
-  },
+  /** Permanent. The backend requires the user's own id as confirmation. */
+  deleteAccount: (userId: string) =>
+    apiRequest<{ deleted: boolean }>({ method: 'DELETE', url: '/users/account', data: { confirm: userId } }),
 
-  exportUserData: async (): Promise<ApiResponse<ProfileDataExport>> => {
-    return apiRequest<ProfileDataExport>({
-      method: 'GET',
-      url: '/users/profile/export',
-    });
-  },
+  exportUserData: () => apiRequest<ProfileDataExport>({ method: 'GET', url: '/users/profile/export' }),
 };

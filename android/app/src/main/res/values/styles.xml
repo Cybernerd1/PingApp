@@ -1,7 +1,7 @@
 <resources>
 
-    <!-- Ping brand cream background for splash -->
-    <color name="splashBackground">#FBEEE6</color>
+    <!-- Splash background — matches Colors.cream in the JS splash -->
+    <color name="splashBackground">#F1EEF8</color>
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
