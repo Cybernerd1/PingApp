@@ -14,7 +14,9 @@ const SHOW_ME: { value: PreferenceGenderType; label: string }[] = [
   { value: 'non-binary', label: 'Non-binary' },
   { value: 'everyone', label: 'Everyone' },
 ];
-const DISTANCES = [5, 10, 25, 50, 100];
+/** Sentinel meaning "no distance limit" (backend treats >= 20000 as unlimited). */
+export const NO_DISTANCE_LIMIT = 20000;
+const DISTANCES = [5, 10, 25, 50, 100, NO_DISTANCE_LIMIT];
 
 export const PREFS_KEY = ['preferences'];
 
@@ -100,7 +102,7 @@ export const FiltersSheet: React.FC<{ visible: boolean; onClose: () => void; onS
           <Text style={styles.section}>Maximum distance</Text>
           <View style={styles.chips}>
             {DISTANCES.map((d, i) => (
-              <Chip key={d} label={`${d} km`} tintIndex={i + 2} selected={draft.max_distance_km === d} onPress={() => setDraft({ ...draft, max_distance_km: d })} />
+              <Chip key={d} label={d >= NO_DISTANCE_LIMIT ? 'No limit' : `${d} km`} tintIndex={i + 2} selected={draft.max_distance_km === d} onPress={() => setDraft({ ...draft, max_distance_km: d })} />
             ))}
           </View>
         </>

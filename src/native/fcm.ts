@@ -6,6 +6,7 @@
  * is a safe no-op (no fake token, no red-box) — rebuild with `npm run android`.
  */
 import { NativeModules, PermissionsAndroid, Platform, TurboModuleRegistry } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface FCMNotificationPayload {
   title: string;
@@ -44,8 +45,27 @@ function messagingModule(): Messaging | null {
 /** Must run at bundle load (index.js) so Android can deliver data while the app is closed. */
 export const setupFCMBackgroundHandler = () => {
   const m = messagingModule();
-  m?.().setBackgroundMessageHandler(async () => {
-    // Notification messages are displayed by the OS; nothing to do here.
+  m?.().setBackgroundMessageHandler(async msg => {
+    // The OS displays the notification itself; also keep it in the in-app inbox
+    // so it stays there until the user clears it.
+    try {
+      const raw = await AsyncStorage.getItem('ping.notifications.v1');
+      const list = raw ? JSON.parse(raw) : [];
+      const type = msg.data?.type;
+      list.unshift({
+        id: `${Date.now()}-${msg.messageId ?? Math.random().toString(36).slice(2, 7)}`,
+        title: msg.notification?.title ?? 'Ping',
+        body: msg.notification?.body ?? '',
+        icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
+        at: Date.now(),
+        read: false,
+        chatId: msg.data?.chat_id,
+        avatarUrl: msg.data?.avatar_url,
+      });
+      await AsyncStorage.setItem('ping.notifications.v1', JSON.stringify(list.slice(0, 200)));
+    } catch {
+      // best effort
+    }
   });
 };
 

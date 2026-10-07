@@ -19,10 +19,18 @@ export class LocationUnavailable extends Error {
  * Loaded lazily, and only after checking the native module is compiled in —
  * requiring the package without it throws at import time (red screen in dev).
  */
+let configured = false;
 function getGeolocation(): Geo {
   const name = 'RNCGeolocation';
   if (!(NativeModules[name] ?? TurboModuleRegistry.get(name))) throw new LocationUnavailable();
-  return require('@react-native-community/geolocation').default as Geo;
+  const geo = require('@react-native-community/geolocation').default as Geo;
+  if (!configured) {
+    configured = true;
+    // Play Services provider shows Android's native "Turn on device location?" dialog
+    // when GPS is off; 'auto' falls back to the plain Android API without it.
+    geo.setRNConfiguration({ skipPermissionRequests: false, locationProvider: 'playServices' });
+  }
+  return geo;
 }
 
 export class LocationPermissionDenied extends Error {
@@ -65,5 +73,19 @@ export async function getCurrentCoords(): Promise<LocationCoordinates> {
     return await getPosition(true);
   } catch {
     return getPosition(false);
+  }
+}
+
+/**
+ * Run on app open: asks for location permission if missing, then, if the device's
+ * location (GPS) is off, triggers the native "turn on location" dialog.
+ * Resolves with coordinates when everything is on, otherwise null. Never throws.
+ */
+export async function ensureLocationReady(): Promise<LocationCoordinates | null> {
+  try {
+    await getCurrentCoords();
+    return await getPosition(false);
+  } catch {
+    return null;
   }
 }

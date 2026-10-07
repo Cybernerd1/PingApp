@@ -1,6 +1,6 @@
 import React from 'react';
 import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../theme/colors';
 import { Radius, Typography } from '../theme/typography';
 import { Close } from './icons';
@@ -17,10 +17,18 @@ interface SheetProps {
 }
 
 /** Bottom sheet modal used for filters, edit forms, menus. */
-export const Sheet: React.FC<SheetProps> = ({ visible, onClose, title, children, footer, tall, scroll = true }) => {
+export const Sheet: React.FC<SheetProps> = props => (
+  <Modal visible={props.visible} transparent animationType="slide" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
+    <SafeAreaProvider>
+      <SheetContent {...props} />
+    </SafeAreaProvider>
+  </Modal>
+);
+
+const SheetContent: React.FC<SheetProps> = ({ onClose, title, children, footer, tall, scroll = true }) => {
   const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
         <View style={[styles.sheet, tall && styles.tall, { paddingBottom: Math.max(insets.bottom, 16) }]}>
@@ -45,7 +53,7 @@ export const Sheet: React.FC<SheetProps> = ({ visible, onClose, title, children,
           {footer ? <View style={styles.footer}>{footer}</View> : null}
         </View>
       </KeyboardAvoidingView>
-    </Modal>
+    </>
   );
 };
 

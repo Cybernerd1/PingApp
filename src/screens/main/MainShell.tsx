@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { AppState, StyleSheet, View } from 'react-native';
+import { ensureLocationReady } from '../../native/location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
@@ -157,12 +158,36 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
   useEffect(
     () =>
       onForegroundMessage(p => {
-        addNotif({ title: p.title, body: p.body, icon: p.data?.type === 'match' ? '✨' : '💬', chatId: p.data?.chat_id });
+        const type = p.data?.type;
+        addNotif({
+          title: p.title,
+          body: p.body,
+          icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
+          chatId: p.data?.chat_id,
+          avatarUrl: p.data?.avatar_url,
+        });
       }),
     [addNotif],
   );
 
   useEffect(() => () => realtime.disconnect(), []);
+
+  // On open / resume: make sure location permission is granted and device GPS is on
+  // (prompts for permission, then shows the native "turn on location" dialog).
+  useEffect(() => {
+    let busy = false;
+    const check = async () => {
+      if (busy) return;
+      busy = true;
+      await ensureLocationReady();
+      busy = false;
+    };
+    check();
+    const sub = AppState.addEventListener('change', s => {
+      if (s === 'active') check();
+    });
+    return () => sub.remove();
+  }, []);
 
   if (openChat) {
     return <ChatThreadScreen chat={openChat} onBack={() => setOpenChat(null)} />;

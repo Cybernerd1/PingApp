@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
@@ -28,7 +28,16 @@ interface Props {
 }
 
 /** S16 — full profile of another user. */
-export const ProfileSheet: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId }) => {
+export const ProfileSheet: React.FC<Props> = props => (
+  <Modal visible={props.visible} animationType="slide" onRequestClose={props.onClose} statusBarTranslucent navigationBarTranslucent>
+    {/* Modals are separate Android windows → give them their own safe-area provider. */}
+    <SafeAreaProvider>
+      <ProfileContent {...props} />
+    </SafeAreaProvider>
+  </Modal>
+);
+
+const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId }) => {
   const insets = useSafeAreaInsets();
   const id = candidate?.user_id ?? userId ?? null;
   const [menu, setMenu] = useState(false);
@@ -47,8 +56,7 @@ export const ProfileSheet: React.FC<Props> = ({ candidate, userId, visible, onCl
   const photos = (candidate?.photos ?? remote.data?.photos ?? []).map(p => p.photo_url);
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
-      <View style={styles.root}>
+      <View style={[styles.root, { paddingTop: insets.top }]}>
         {remote.isLoading && !candidate ? (
           <ActivityIndicator style={styles.loader} color={Colors.primary} size="large" />
         ) : remote.isError && !candidate ? (
@@ -150,7 +158,6 @@ export const ProfileSheet: React.FC<Props> = ({ candidate, userId, visible, onCl
           />
         ) : null}
       </View>
-    </Modal>
   );
 };
 

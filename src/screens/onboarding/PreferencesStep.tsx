@@ -24,7 +24,7 @@ const SHOW_ME: { value: PreferenceGenderType; label: string }[] = [
   { value: 'non-binary', label: 'Non-binary' },
   { value: 'everyone', label: 'Everyone' },
 ];
-const DISTANCES = [5, 10, 25, 50, 100];
+const DISTANCES = [5, 10, 25, 50, 100, 20000]; // 20000 = no limit
 
 function defaultShowMe(g: GenderType | null): PreferenceGenderType[] {
   if (g === 'female') return ['male'];
@@ -108,7 +108,7 @@ export const PreferencesStep: React.FC<Props> = ({ step, total, ownGender, onBac
       <Text style={styles.section}>Maximum distance</Text>
       <View style={styles.chips}>
         {DISTANCES.map((d, i) => (
-          <Chip key={d} label={`${d} km`} tintIndex={i + 2} selected={distance === d} onPress={() => setDistance(d)} />
+          <Chip key={d} label={d >= 20000 ? 'No limit' : `${d} km`} tintIndex={i + 2} selected={distance === d} onPress={() => setDistance(d)} />
         ))}
       </View>
     </StepLayout>

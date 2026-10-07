@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { ArrowLeft, Avatar, GradientBackground, IconButton, ImageIcon, More, Send } from '../../ui';
+import { ArrowLeft, Avatar, GradientBackground, IconButton, ImageIcon, More, Send, useMediaViewer } from '../../ui';
 import { chatsApi } from '../../api/chats';
 import { unwrap } from '../../api/client';
 import { ChatMessage } from '../../api/types';
@@ -33,6 +33,7 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
   const { me } = useSession();
   const qc = useQueryClient();
   const listRef = useRef<FlatList<ChatMessage>>(null);
+  const { mediaViewer, openMedia } = useMediaViewer();
   const [text, setText] = useState('');
   const [live, setLive] = useState<ChatMessage[]>([]);
   const [typing, setTyping] = useState(false);
@@ -111,7 +112,11 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
     return [...base, ...live.filter(m => !seen.has(m.message_id))];
   }, [history.data, live]);
 
-  const scrollToEnd = useCallback(() => requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true })), []);
+  // With inverted list, newest message is at the top (offset 0).
+  const scrollToEnd = useCallback(
+    () => requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: true })),
+    [],
+  );
   useEffect(() => {
     scrollToEnd();
   }, [messages.length, scrollToEnd]);
@@ -187,7 +192,9 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
         <View style={[styles.bubbleRow, mine ? styles.right : styles.left]}>
           <View style={[styles.bubble, mine ? styles.mine : styles.theirs, item.message_type === 'image' && styles.imageBubble, item.pending && styles.pending]}>
             {item.message_type === 'image' && item.media_url ? (
-              <Image source={{ uri: item.media_url }} style={styles.image} />
+              <Pressable onPress={() => openMedia(item.media_url!)} accessibilityRole="button" accessibilityLabel="View full image">
+                <Image source={{ uri: item.media_url }} style={styles.image} />
+              </Pressable>
             ) : (
               <Text style={[styles.text, mine && styles.textMine]}>{item.content}</Text>
             )}
@@ -221,7 +228,11 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
           </IconButton>
         </View>
 
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
           {history.isLoading ? (
             <ActivityIndicator style={styles.flex} color={Colors.primary} />
           ) : history.isError ? (
@@ -231,23 +242,27 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
           ) : (
             <FlatList
               ref={listRef}
-              data={messages}
+              data={[...messages].reverse()}
               keyExtractor={m => m.message_id}
               renderItem={renderItem}
               contentContainerStyle={styles.list}
-              onContentSizeChange={scrollToEnd}
-              ListEmptyComponent={
-                <View style={styles.center}>
-                  <Avatar uri={chat.photo} name={chat.name} size={88} ring />
-                  <Text style={styles.emptyTitle}>You matched with {chat.name.split(' ')[0]}</Text>
-                  <Text style={styles.emptySub}>It starts with a Ping. Say hi 👋</Text>
-                </View>
-              }
+              inverted
+              keyboardShouldPersistTaps="handled"
               ListFooterComponent={
                 <>
                   {seen ? <Text style={styles.seen}>Seen {timeAgo(last.created_at)}</Text> : null}
                   {typing ? <Text style={styles.typing}>{chat.name.split(' ')[0]} is typing…</Text> : null}
                 </>
+              }
+              ListHeaderComponent={
+                history.isLoading ? null :
+                messages.length === 0 ? (
+                  <View style={styles.center}>
+                    <Avatar uri={chat.photo} name={chat.name} size={88} ring />
+                    <Text style={styles.emptyTitle}>You matched with {chat.name.split(' ')[0]}</Text>
+                    <Text style={styles.emptySub}>It starts with a Ping. Say hi 👋</Text>
+                  </View>
+                ) : null
               }
             />
           )}
@@ -282,8 +297,9 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
             if (kind !== 'reported') onBack();
           }}
         />
-      </SafeAreaView>
-    </GradientBackground>
+        </SafeAreaView>
+        {mediaViewer}
+      </GradientBackground>
   );
 };
 

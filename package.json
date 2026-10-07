@@ -12,7 +12,7 @@
     "test": "jest"
   },
   "dependencies": {
-    "@react-native-async-storage/async-storage": "^1.23.1",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/geolocation": "^3.4.0",
     "@react-native-firebase/app": "^21.8.0",
     "@react-native-firebase/auth": "^21.8.0",
@@ -26,7 +26,7 @@
     "react-native-device-info": "^14.0.1",
     "react-native-gesture-handler": "^3.3.0",
     "react-native-image-picker": "^8.2.1",
-    "react-native-keychain": "^9.0.0",
+    "react-native-keychain": "^10.0.0",
     "react-native-reanimated": "^4.7.0",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-svg": "^15.15.5",

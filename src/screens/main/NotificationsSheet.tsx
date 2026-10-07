@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { EmptyState, GlassCard, PillButton, Sheet } from '../../ui';
@@ -44,7 +44,11 @@ export const NotificationsSheet: React.FC<{
                   }}
                   style={({ pressed }) => [styles.row, i === items.length - 1 && styles.last, pressed && styles.pressed]}
                 >
-                  <Text style={styles.icon}>{n.icon}</Text>
+                  {n.avatarUrl ? (
+                    <Image source={{ uri: n.avatarUrl }} style={styles.avatar} />
+                  ) : (
+                    <Text style={styles.icon}>{n.icon}</Text>
+                  )}
                   <View style={styles.flex}>
                     <Text style={styles.title}>{n.title}</Text>
                     <Text style={styles.body} numberOfLines={2}>
@@ -71,6 +75,7 @@ const styles = StyleSheet.create({
   last: { borderBottomWidth: 0 },
   pressed: { opacity: 0.6 },
   icon: { fontSize: 22 },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.line },
   title: { ...Typography.bodyStrong, color: Colors.ink },
   body: { ...Typography.caption, color: Colors.mute, marginTop: 2 },
   time: { ...Typography.caption, color: Colors.faint },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Permission, PermissionsAndroid, Platform, StatusBar, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, Permission, PermissionsAndroid, Platform, StatusBar, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Colors } from './src/theme/colors';
@@ -26,6 +26,23 @@ import { tokenStore } from './src/session/tokenStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { UserProfile } from './src/api/types';
 
+const FLIRTY_LINES = [
+  'Searching dates for you… 💘',
+  'Finding someone worth swiping for… ✨',
+  'Warming up the sparks… 🔥',
+  'Your next favourite person is loading… 💜',
+  'Polishing your perfect match… 😉',
+];
+
+const FlirtyLoader: React.FC = () => {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI(n => (n + 1) % FLIRTY_LINES.length), 2500);
+    return () => clearInterval(t);
+  }, []);
+  return <Text style={styles.offlineText}>{FLIRTY_LINES[i]}</Text>;
+};
+
 // ─── App Step State Machine (v1) ──────────────────────────────────────────────
 // splash     → animated brand splash, then resolveSession()
 // welcome    → "Love is One Swipe Away" + Google sign-in
@@ -45,6 +62,7 @@ function App(): React.JSX.Element {
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('gender');
   const [offlineMessage, setOfflineMessage] = useState('');
   const [retrying, setRetrying] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [toast, setToast] = useState<ToastConfig | null>(null);
   const [mainToast, setMainToast] = useState<ToastConfig | null>(null);
 
@@ -112,10 +130,13 @@ function App(): React.JSX.Element {
   }, []);
 
   const handleSplashComplete = async () => {
+    setResolving(true);
     try {
       applySession(await resolveSession());
     } catch {
       setCurrentStep('welcome');
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -158,6 +179,15 @@ function App(): React.JSX.Element {
         <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
 
         {currentStep === 'splash' && <SplashScreen onComplete={handleSplashComplete} />}
+
+        {currentStep === 'splash' && resolving && (
+          <GradientBackground>
+            <SafeAreaView style={styles.offline}>
+              <ActivityIndicator size="large" color={Colors.coral} />
+              <FlirtyLoader />
+            </SafeAreaView>
+          </GradientBackground>
+        )}
 
         {currentStep === 'welcome' && <WelcomeScreen onSignedIn={state => applySession(state, { welcomeBack: true })} />}
 

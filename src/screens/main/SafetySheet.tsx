@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { Chip, ListRow, PillButton, Sheet } from '../../ui';
+import { Chip, ListRow, PillButton, Sheet, useConfirmDialog } from '../../ui';
 import { safetyApi } from '../../api/safety';
 import { matchesApi } from '../../api/matches';
 import { ReportReason } from '../../api/types';
@@ -36,6 +36,7 @@ export const SafetySheet: React.FC<Props> = ({ visible, onClose, userId, name, m
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const first = name.split(' ')[0] || 'this person';
+  const { dialog, showDialog } = useConfirmDialog();
 
   const close = () => {
     setMode('menu');
@@ -61,12 +62,17 @@ export const SafetySheet: React.FC<Props> = ({ visible, onClose, userId, name, m
   };
 
   const confirm = (title: string, msg: string, action: () => void) =>
-    Alert.alert(title, msg, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: title, style: 'destructive', onPress: action },
-    ]);
+    showDialog({
+      title,
+      message: msg,
+      buttons: [
+        { label: 'Cancel', variant: 'cancel', onPress: () => {} },
+        { label: title, variant: 'destructive', onPress: action },
+      ],
+    });
 
   return (
+    <>
     <Sheet visible={visible} onClose={close} title={mode === 'menu' ? first : `Report ${first}`}>
       {mode === 'menu' ? (
         <>
@@ -128,6 +134,8 @@ export const SafetySheet: React.FC<Props> = ({ visible, onClose, userId, name, m
         </>
       )}
     </Sheet>
+    {dialog}
+  </>
   );
 };
 

@@ -85,12 +85,12 @@ export const ChatsScreen: React.FC<{
             onPress={onOpenAssistant}
             style={({ pressed }) => [styles.row, styles.assistantRow, pressed && styles.pressed]}
             accessibilityRole="button"
-            accessibilityLabel="Chat with Ping Assistant"
+            accessibilityLabel="Chat with Lily"
           >
             <AssistantAvatar size={56} />
             <View style={styles.rowBody}>
               <View style={styles.nameRow}>
-                <Text style={styles.name}>Ping Assistant</Text>
+                <Text style={styles.name}>Lily</Text>
                 <View style={styles.pin}>
                   <Text style={styles.pinText}>AI</Text>
                 </View>

@@ -20,11 +20,11 @@ const TERMS: { h: string; p: string }[] = [
 ];
 
 const PRIVACY: { h: string; p: string }[] = [
-  { h: '1. Information we collect', p: 'Account details from Google sign-in (name, email, profile photo) or the email you sign in with; profile details you add (birthday, gender, bio, interests, photos); your approximate location when you allow it; messages you send, including messages to Ping Assistant; and device data such as a push-notification token.' },
+  { h: '1. Information we collect', p: 'Account details from Google sign-in (name, email, profile photo) or the email you sign in with; profile details you add (birthday, gender, bio, interests, photos); your approximate location when you allow it; messages you send, including messages to Lily, our assistant; and device data such as a push-notification token.' },
   { h: '2. How we use it', p: 'To create your profile, show you and others to each other in Discover, calculate distance, deliver messages and notifications, keep the community safe, and improve Ping.' },
   { h: '3. Location', p: 'Location is used only to find people near you and is shown to others as an approximate distance. You can turn distance display off in Privacy settings or revoke permission in your phone settings.' },
   { h: '4. Camera, microphone & media', p: 'These permissions are used only when you take or choose photos, record voice messages or share media. We do not access them in the background.' },
-  { h: '5. Sharing', p: 'Your profile is visible to other users according to your privacy settings. We use service providers (hosting, image storage, push delivery, and an AI provider that generates Ping Assistant replies) who process data on our behalf. We do not sell your personal data.' },
+  { h: '5. Sharing', p: 'Your profile is visible to other users according to your privacy settings. We use service providers (hosting, image storage, push delivery, and an AI provider that generates Lily’s replies) who process data on our behalf. We do not sell your personal data.' },
   { h: '6. Notifications', p: 'We send push notifications for new matches and messages. You can disable them in your phone’s system settings at any time.' },
   { h: '7. Retention & your choices', p: 'We keep your data while your account is active. You can edit your profile, block users and request removal of your data by contacting us.' },
   { h: '8. Security', p: 'We use encryption in transit and access controls to protect your data, but no system is completely secure.' },

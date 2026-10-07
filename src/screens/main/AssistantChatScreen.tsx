@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   FlatList,
-  KeyboardAvoidingView,
+  Keyboard,
+  LayoutChangeEvent,
   Platform,
   Pressable,
   ScrollView,
@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { ArrowLeft, GradientBackground, IconButton, More, Send, Sparkle } from '../../ui';
+import { ArrowLeft, GradientBackground, IconButton, More, Send, Sparkle, useConfirmDialog } from '../../ui';
 import { assistantApi } from '../../api/assistant';
 import { unwrap } from '../../api/client';
 import { AssistantHistory, AssistantMessage } from '../../api/types';
@@ -50,6 +50,39 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
   const [sending, setSending] = useState(false);
   const [pending, setPending] = useState<AssistantMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { dialog, showDialog } = useConfirmDialog();
+
+  // Lift the composer above the keyboard. If the OS already resized the window
+  // (adjustResize), our container shrinks and no extra padding is needed.
+  const [kbPad, setKbPad] = useState(0);
+  const baseHeight = useRef(0);
+  const kbOpen = useRef(false);
+  const containerHeight = useRef(0);
+  useEffect(() => {
+    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const s = Keyboard.addListener(showEvt, e => {
+      kbOpen.current = true;
+      const kb = e.endCoordinates.height;
+      if (Platform.OS === 'ios') return setKbPad(kb);
+      setTimeout(() => {
+        const shrunk = baseHeight.current - containerHeight.current;
+        setKbPad(shrunk > kb * 0.5 ? 0 : kb);
+      }, 120);
+    });
+    const h = Keyboard.addListener(hideEvt, () => {
+      kbOpen.current = false;
+      setKbPad(0);
+    });
+    return () => {
+      s.remove();
+      h.remove();
+    };
+  }, []);
+  const onContainerLayout = (e: LayoutChangeEvent) => {
+    containerHeight.current = e.nativeEvent.layout.height;
+    if (!kbOpen.current) baseHeight.current = containerHeight.current;
+  };
 
   const history = useQuery({
     queryKey: ASSISTANT_KEY,
@@ -87,7 +120,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
     setPending(null);
     if (res.status === 'error') {
       setText(content); // give it back so they can retry
-      setError(res.httpStatus === 404 ? 'Ping Assistant isn’t on this server yet — deploy the latest backend.' : res.message);
+      setError(res.httpStatus === 404 ? 'Lily isn’t on this server yet — deploy the latest backend.' : res.message);
       return;
     }
     qc.setQueryData<AssistantHistory>(ASSISTANT_KEY, old => ({
@@ -97,18 +130,22 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
   };
 
   const clear = () =>
-    Alert.alert('Clear chat?', 'This deletes your conversation with Ping Assistant.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: async () => {
-          const res = await assistantApi.clear();
-          if (res.status === 'error') return setError(res.message);
-          qc.setQueryData<AssistantHistory>(ASSISTANT_KEY, old => ({ ai_enabled: !!old?.ai_enabled, messages: [] }));
+    showDialog({
+      title: 'Clear chat?',
+      message: 'This deletes your conversation with Lily.',
+      buttons: [
+        { label: 'Cancel', variant: 'cancel', onPress: () => {} },
+        {
+          label: 'Clear',
+          variant: 'destructive',
+          onPress: async () => {
+            const res = await assistantApi.clear();
+            if (res.status === 'error') return setError(res.message);
+            qc.setQueryData<AssistantHistory>(ASSISTANT_KEY, old => ({ ai_enabled: !!old?.ai_enabled, messages: [] }));
+          },
         },
-      },
-    ]);
+      ],
+    });
 
   const firstName = me.full_name?.split(' ')[0];
 
@@ -127,8 +164,9 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
   };
 
   return (
+    <>
     <GradientBackground variant="soft">
-      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.flex} edges={['top', kbPad ? 'left' : 'bottom']}>
         <View style={styles.header}>
           <IconButton accessibilityLabel="Back to chats" onPress={onBack} variant="white">
             <ArrowLeft />
@@ -136,7 +174,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
           <View style={styles.who}>
             <AssistantAvatar />
             <View style={styles.flex}>
-              <Text style={styles.whoName}>Ping Assistant</Text>
+              <Text style={styles.whoName}>Lily</Text>
               <Text style={styles.whoSub}>{sending ? 'typing…' : 'Your dating sidekick'}</Text>
             </View>
           </View>
@@ -145,7 +183,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
           </IconButton>
         </View>
 
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={[styles.flex, { paddingBottom: kbPad }]} onLayout={onContainerLayout}>
           {history.isLoading ? (
             <ActivityIndicator style={styles.flex} color={Colors.primary} />
           ) : history.isError ? (
@@ -167,7 +205,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
               ListHeaderComponent={
                 <View style={styles.intro}>
                   <AssistantAvatar size={72} />
-                  <Text style={styles.introTitle}>Hi{firstName ? ` ${firstName}` : ''}! I’m Ping Assistant</Text>
+                  <Text style={styles.introTitle}>Hi{firstName ? ` ${firstName}` : ''}! I’m Lily</Text>
                   <Text style={styles.introSub}>
                     Ask me for bio help, opening lines, replies to your matches, date ideas or safety tips.
                   </Text>
@@ -207,19 +245,21 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
               style={styles.input}
               value={text}
               onChangeText={v => setText(v.slice(0, MAX_LEN))}
-              placeholder="Ask Ping Assistant…"
+              placeholder="Ask Lily…"
               placeholderTextColor={Colors.faint}
               multiline
               maxLength={MAX_LEN}
-              accessibilityLabel="Message Ping Assistant"
+              accessibilityLabel="Message Lily"
             />
             <IconButton accessibilityLabel="Send" onPress={() => send()} disabled={!text.trim() || sending} variant="primary" size={44}>
               <Send size={18} />
             </IconButton>
           </View>
-        </KeyboardAvoidingView>
+        </View>
       </SafeAreaView>
     </GradientBackground>
+    {dialog}
+  </>
   );
 };
 

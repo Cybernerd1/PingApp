@@ -1,0 +1,17 @@
+diff --git a/node_modules/react-native-keychain/android/build.gradle b/node_modules/react-native-keychain/android/build.gradle
+index f1e2f0f..0819d44 100644
+--- a/node_modules/react-native-keychain/android/build.gradle
++++ b/node_modules/react-native-keychain/android/build.gradle
+@@ -20,7 +20,11 @@ def isNewArchitectureEnabled() {
+ }
+ 
+ apply plugin: 'com.android.library'
+-apply plugin: 'kotlin-android'
++// AGP 9 compiles Kotlin itself (built-in Kotlin) and registers the `kotlin`
++// extension, so applying kotlin-android again fails. Only apply it on older AGP.
++if (com.android.Version.ANDROID_GRADLE_PLUGIN_VERSION.tokenize('.')[0].toInteger() < 9) {
++  apply plugin: 'kotlin-android'
++}
+ apply from: "$projectDir/react-native-helpers.gradle"
+ 
+ if (isNewArchitectureEnabled()) {
