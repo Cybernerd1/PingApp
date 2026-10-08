@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "510915224906-5vh8o30qt1021qnpatufqccljlm8eiii.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ping",
+            "certificate_hash": "3e9fbeade92b82f682dc69985a595104037d88fe"
+          }
+        },
+        {
           "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
           "client_type": 3
         }
