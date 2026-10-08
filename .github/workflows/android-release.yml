@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22   # matches package.json engines >= 22.11.0
+          node-version: 22
           cache: npm
 
       - name: Setup Java
@@ -38,14 +38,27 @@ jobs:
 
       # ── Keystore ────────────────────────────────────────────────────────────
       - name: Decode release keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
         run: |
-          printf '%s' "${{ secrets.RELEASE_KEYSTORE_B64 }}" \
+          printf '%s' "$KEYSTORE_B64" \
             | base64 -d > android/app/ping-release.keystore
 
+      # ── Verify keystore BEFORE expensive Gradle build ───────────────────────
+      - name: Verify release keystore
+        env:
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+        run: |
+          keytool -list \
+            -v \
+            -keystore android/app/ping-release.keystore \
+            -storetype PKCS12 \
+            -storepass "$STORE_PASSWORD" \
+            -alias "$KEY_ALIAS" \
+            | grep -E "Alias name:|Entry type:"
+
       # ── Build ───────────────────────────────────────────────────────────────
-      # -PreactNativeArchitectures limits to real-device ABIs only (no x86/x86_64
-      # emulator slices), cutting build time roughly in half.
-      # Per-ABI builds produce: app-arm64-v8a-release.apk + app-armeabi-v7a-release.apk
       - name: Build release APK
         env:
           RELEASE_STORE_FILE: ping-release.keystore
@@ -62,18 +75,16 @@ jobs:
             -PRELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD"
 
       # ── Rename APKs ─────────────────────────────────────────────────────────
-      # Gradle names per-ABI APKs "app-<abi>-release.apk"; rename each to
-      # "Ping-<abi>.apk" so the GitHub Release attachment names are readable.
-      # Also handles the edge case of a single universal "app-release.apk".
       - name: Rename APKs
         run: |
           APK_DIR=android/app/build/outputs/apk/release
+
           for apk in "$APK_DIR"/app-*-release.apk; do
             [ -f "$apk" ] || continue
             abi=$(basename "$apk" | sed 's/^app-//;s/-release\.apk$//')
             mv "$apk" "$APK_DIR/Ping-${abi}.apk"
           done
-          # universal APK fallback
+
           if [ -f "$APK_DIR/app-release.apk" ]; then
             mv "$APK_DIR/app-release.apk" "$APK_DIR/Ping.apk"
           fi
@@ -81,7 +92,8 @@ jobs:
       # ── Tag ─────────────────────────────────────────────────────────────────
       - name: Generate release tag
         id: release
-        run: echo "tag=v$(date +'%Y.%m.%d.%H%M')" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "tag=v$(date +'%Y.%m.%d.%H%M')" >> "$GITHUB_OUTPUT"
 
       # ── GitHub Release ───────────────────────────────────────────────────────
       - name: Create GitHub Release
@@ -95,5 +107,6 @@ jobs:
             Latest development build of Ping.
 
             Commit: `${{ github.sha }}`
-          files: android/app/build/outputs/apk/release/Ping*.apk
+          files: |
+            android/app/build/outputs/apk/release/Ping*.apk
           generate_release_notes: true
