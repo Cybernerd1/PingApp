@@ -20,8 +20,8 @@ react {
     /* Variants */
     //   The list of variants to that are debuggable. For those we're going to
     //   skip the bundling of the JS bundle and the assets. Default is "debug", "debugOptimized".
-    //   If you add flavors like lite, prod, etc. you'll have to list your debuggableVariants.
-    // debuggableVariants = ["liteDebug", "liteDebugOptimized", "prodDebug", "prodDebugOptimized"]
+    //   All three flavors' debug variants are listed so RN skips JS bundling for them.
+    debuggableVariants = ["devDebug", "devDebugOptimized", "qaDebug", "qaDebugOptimized", "prodDebug", "prodDebugOptimized"]
 
     /* Bundling */
     //   A list containing the node command and its flags. Default is just 'node'.
@@ -78,6 +78,10 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
 
     namespace "com.ping"
+
+    // All APK outputs will be named "Ping-<flavor>-<buildType>.apk"
+    archivesBaseName = "Ping"
+
     defaultConfig {
         applicationId "com.ping"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -85,6 +89,27 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    // ── Product Flavors ──────────────────────────────────────────────────────
+    flavorDimensions "environment"
+    productFlavors {
+        dev {
+            dimension "environment"
+            applicationIdSuffix ".dev"
+            // App label is overridden in src/dev/res/values/strings.xml → "Ping Dev"
+        }
+        qa {
+            dimension "environment"
+            applicationIdSuffix ".qa"
+            // App label is overridden in src/qa/res/values/strings.xml → "Ping QA"
+        }
+        prod {
+            dimension "environment"
+            // No suffix – applicationId stays "com.ping"
+            // App label from src/prod/res/values/strings.xml → "Ping"
+        }
+    }
+
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
