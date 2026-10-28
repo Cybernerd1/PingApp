@@ -7,10 +7,13 @@ export const API_BASE_URL = ENV.API_V1_URL;
 
 /**
  * Render free tier cold-starts take 30–60 s; the first call after idle is
- * usually auth or the profile bootstrap, so those get a long timeout.
+ * usually auth or the profile bootstrap, so those keep long timeouts. All other
+ * requests fail after 10 s; with query networkMode 'offlineFirst' a timeout is a
+ * normal failure — screens keep showing cached data, no infinite spinner.
  */
 const SLOW_PATHS = ['/auth/', '/users/profile'];
-const DEFAULT_TIMEOUT = 30_000;
+/** 10 s — treated as a failure; queries retry then fall back to cached data. */
+const DEFAULT_TIMEOUT = 10_000;
 const SLOW_TIMEOUT = 60_000;
 
 /** Kept for backwards compatibility with older imports; tokens now live in Keychain. */
@@ -99,10 +102,16 @@ apiClient.interceptors.response.use(
 );
 
 function friendlyNetworkMessage(error: AxiosError): string {
-  if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-    return 'Ping is waking up — please try again in a few seconds.';
+  const code = error.code ?? '';
+  const msg = error.message ?? '';
+  // Server accepted the connection but didn't answer in time (cold start / weak uplink).
+  if (code === 'ECONNABORTED' || msg.includes('timeout')) {
+    return 'The internet connection is too slow — the request timed out. Move to a stronger signal and try again.';
   }
-  if (!error.response) return 'No connection. Check your internet and try again.';
+  // DNS/socket failure before any response (airplane mode, dead Wi-Fi, hotspot drop).
+  if (code === 'ERR_NETWORK' || code === 'ERR_INTERNET_DISCONNECTED' || !error.response) {
+    return 'No internet connection. Check your Wi-Fi or mobile data and try again.';
+  }
   return error.message || 'An unexpected error occurred';
 }
 
@@ -134,10 +143,14 @@ export async function apiRequest<T>(config: AxiosRequestConfig): Promise<ApiResp
     const res = await apiClient.request<ApiResponse<T>>(config);
     return res.data;
   } catch (err: any) {
+    // apiClient's interceptor already normalises HTTP failures; reaching here
+    // means the failure happened outside axios (e.g. request setup) — still
+    // surface a human-readable message instead of "AxiosError: Network Error".
+    const isAxios = typeof err?.isAxiosError === 'boolean';
     return {
       status: 'error',
       code: 'NETWORK_ERROR',
-      message: err?.message || 'Network error occurred',
+      message: isAxios ? friendlyNetworkMessage(err as AxiosError) : err?.message || 'Something went wrong — please try again.',
     };
   }
 }

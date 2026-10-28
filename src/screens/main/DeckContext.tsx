@@ -10,6 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { discoverApi } from '../../api/discover';
 import { interactionsApi } from '../../api/interactions';
 import { unwrap } from '../../api/client';
+import { DECK_KEY } from '../../cache/queryClient';
 import { DiscoverCandidate, SwipeAction } from '../../api/types';
 
 export interface MatchEvent {
@@ -35,16 +36,22 @@ interface DeckValue {
 }
 
 const Ctx = createContext<DeckValue | null>(null);
-const DECK_KEY = ['discover'];
 const BATCH = 30;
-const REFILL_AT = 4;
+/** Start prefetching the next batch when this many cards remain. */
+const REFILL_AT = 5;
 
 export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const qc = useQueryClient();
+  const fetchDeck = useCallback(async () => unwrap(await discoverApi.getDiscoverStack(BATCH)).users, []);
+
   const query = useQuery({
     queryKey: DECK_KEY,
-    queryFn: async () => unwrap(await discoverApi.getDiscoverStack(BATCH)).users,
+    queryFn: fetchDeck,
     staleTime: 5 * 60_000,
+    // Persisted: dehydrated to the encrypted disk store by <CacheGate/>.
+    // Location + preference filtering happen SERVER-side, so this single key is
+    // correct for every filter/location state; saves invalidate it.
+    meta: { persist: true },
   });
 
   const [queue, setQueue] = useState<DiscoverCandidate[]>([]);
@@ -52,8 +59,24 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastMatch, setLastMatch] = useState<MatchEvent | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const swiped = useRef(new Set<string>());
+  /** Mirrors `queue` so async callbacks (swipe) never read a stale closure. */
+  const queueRef = useRef<DiscoverCandidate[]>([]);
+  queueRef.current = queue;
+  const fetchingRef = useRef(query.isFetching);
+  fetchingRef.current = query.isFetching;
 
-  // Merge each fetched batch into the queue (skip anything already handled).
+  /**
+   * Fetch the next server-side batch. Deduped: skipped while a fetch is already
+   * in flight, and react-query itself dedupes concurrent prefetches per key.
+   */
+  const prefetchNextBatch = useCallback(() => {
+    if (fetchingRef.current) return;
+    qc.prefetchQuery({ queryKey: DECK_KEY, queryFn: fetchDeck, staleTime: 0 }).catch(() => undefined);
+  }, [qc, fetchDeck]);
+
+  // Merge each fetched batch into the queue, deduping by user_id (a refetched
+  // batch can overlap with cards still in the local queue) and skipping
+  // anything already swiped locally.
   useEffect(() => {
     if (!query.data) return;
     setQueue(prev => {
@@ -63,31 +86,44 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, [query.data]);
 
-  // Top up when running low.
+  // Running low on cards → bring in the next batch (only once data has been
+  // seen; a pool that returned < BATCH is exhausted, don't spin on it).
   useEffect(() => {
-    if (queue.length < REFILL_AT && !query.isFetching && query.data && query.data.length >= BATCH) {
-      qc.invalidateQueries({ queryKey: DECK_KEY });
-    }
-  }, [queue.length, query.isFetching, query.data, qc]);
+    if (queue.length < REFILL_AT && query.data && query.data.length >= BATCH) prefetchNextBatch();
+  }, [queue.length, query.data, prefetchNextBatch]);
 
-  const swipe = useCallback(async (c: DiscoverCandidate, action: SwipeAction) => {
-    swiped.current.add(c.user_id);
-    setQueue(prev => prev.filter(x => x.user_id !== c.user_id));
-    const res = await interactionsApi.swipe({ user_id: c.user_id, action });
-    if (res.status === 'error') {
-      // Put the card back so the swipe isn't silently lost.
-      swiped.current.delete(c.user_id);
-      setQueue(prev => [c, ...prev]);
-      setNotice(res.code === 'RATE_LIMIT_EXCEEDED' ? 'Slow down a little — try again in a minute.' : res.message);
-      return;
-    }
-    setHistory(h => [...h.slice(-9), { c, action }]);
-    if (res.data.is_match) {
-      setLastMatch({ candidate: c, chatId: res.data.chat?.id ?? null, matchId: res.data.match?.id ?? null });
-      qc.invalidateQueries({ queryKey: ['matches'] });
-      qc.invalidateQueries({ queryKey: ['chats'] });
-    }
-  }, [qc]);
+  const swipe = useCallback(
+    async (c: DiscoverCandidate, action: SwipeAction) => {
+      swiped.current.add(c.user_id);
+      setQueue(prev => prev.filter(x => x.user_id !== c.user_id));
+      queueRef.current = queueRef.current.filter(x => x.user_id !== c.user_id);
+      const res = await interactionsApi.swipe({ user_id: c.user_id, action });
+      if (res.status === 'error') {
+        const http = res.httpStatus;
+        // Definitive rejections — the server now rejects this profile
+        // (deleted 404/410, blocked 403, already swiped 409): silently skip to
+        // the next profile, no card return, no notice, no crash.
+        if (http === 403 || http === 404 || http === 409 || http === 410) return;
+        // Everything else is transient (429 rate limit / network / 5xx): put
+        // the card back so the swipe isn't silently lost and explain why.
+        swiped.current.delete(c.user_id);
+        setQueue(prev => (prev.some(x => x.user_id === c.user_id) ? prev : [c, ...prev]));
+        if (!queueRef.current.some(x => x.user_id === c.user_id)) queueRef.current = [c, ...queueRef.current];
+        setNotice(res.code === 'RATE_LIMIT_EXCEEDED' ? 'Slow down a little — try again in a minute.' : res.message);
+        return;
+      }
+      // The swipe is now recorded server-side — only safe point to prefetch,
+      // so the next batch is guaranteed to exclude this user.
+      setHistory(h => [...h.slice(-9), { c, action }]);
+      if (res.data.is_match) {
+        setLastMatch({ candidate: c, chatId: res.data.chat?.id ?? null, matchId: res.data.match?.id ?? null });
+        qc.invalidateQueries({ queryKey: ['matches'] });
+        qc.invalidateQueries({ queryKey: ['chats'] });
+      }
+      if (queueRef.current.length < REFILL_AT) prefetchNextBatch();
+    },
+    [qc, prefetchNextBatch],
+  );
 
   const rewind = useCallback(async () => {
     const last = history[history.length - 1];

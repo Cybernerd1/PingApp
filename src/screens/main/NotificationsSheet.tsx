@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { EmptyState, GlassCard, PillButton, Sheet } from '../../ui';
-import { useNotifications } from '../../notifications/NotificationsContext';
+import { AppNotification, useNotifications } from '../../notifications/NotificationsContext';
 
 const ago = (t: number) => {
   const m = Math.floor((Date.now() - t) / 60000);
@@ -18,11 +18,19 @@ export const NotificationsSheet: React.FC<{
   onClose: () => void;
   onOpenChats: () => void;
   onOpenChat: (chatId: string) => void;
-}> = ({ visible, onClose, onOpenChats, onOpenChat }) => {
+  onOpenProfile: (userId: string) => void;
+}> = ({ visible, onClose, onOpenChats, onOpenChat, onOpenProfile }) => {
   const { items, markAllRead, clear } = useNotifications();
   useEffect(() => {
     if (visible) markAllRead();
   }, [visible, markAllRead]);
+
+  const open = (n: AppNotification) => {
+    onClose();
+    // Matches and likes lead to the person; messages lead to the conversation.
+    if ((n.kind === 'match' || n.kind === 'like') && n.userId) onOpenProfile(n.userId);
+    else if (n.chatId) onOpenChat(n.chatId);
+  };
 
   return (
     <Sheet visible={visible} onClose={onClose} title="Notifications">
@@ -35,13 +43,12 @@ export const NotificationsSheet: React.FC<{
               {items.map((n, i) => (
                 <Pressable
                   key={n.id}
-                  disabled={!n.chatId}
-                  accessibilityRole={n.chatId ? 'button' : undefined}
-                  onPress={() => {
-                    if (!n.chatId) return;
-                    onClose();
-                    onOpenChat(n.chatId);
-                  }}
+                  disabled={!n.chatId && !n.userId}
+                  accessibilityRole={n.chatId || n.userId ? 'button' : undefined}
+                  accessibilityLabel={
+                    n.kind === 'match' || n.kind === 'like' ? `View profile: ${n.title}` : n.chatId ? `Open chat: ${n.title}` : n.title
+                  }
+                  onPress={() => open(n)}
                   style={({ pressed }) => [styles.row, i === items.length - 1 && styles.last, pressed && styles.pressed]}
                 >
                   {n.avatarUrl ? (

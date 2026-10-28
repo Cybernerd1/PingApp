@@ -4,15 +4,13 @@ import {
   BackHandler,
   FlatList,
   Image,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Colors } from '../../theme/colors';
@@ -23,8 +21,9 @@ import { unwrap } from '../../api/client';
 import { ChatMessage } from '../../api/types';
 import { realtime } from '../../realtime/socket';
 import { useSession } from '../../session/SessionContext';
-import { CHATS_KEY, MATCHES_KEY, OpenChat, timeAgo } from './ChatsScreen';
+import { CHATS_KEY, MATCHES_KEY, OpenChat } from './ChatsScreen';
 import { ProfileSheet } from './ProfileSheet';
+import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 
 const MAX_LEN = 1000;
 
@@ -44,6 +43,11 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
   const [readByThem, setReadByThem] = useState(false);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef(0);
+  const insets = useSafeAreaInsets();
+ 
+
+const kbVisible = useKeyboardState(s => s.isVisible);
+const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
 
   const history = useQuery({
     queryKey: ['messages', chat.chatId],
@@ -184,13 +188,27 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
 
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {
     const mine = item.sender_id === me.user_id;
-    const prev = messages[index - 1];
-    const showTime = !prev || new Date(item.created_at).getTime() - new Date(prev.created_at).getTime() > 30 * 60_000;
+    // Because the list is inverted, index 0 = newest. "prev" in reading order = index+1.
+    const prevInverted = messages[messages.length - 2 - index]; // item before this in chronological order
+    const createdAt = new Date(item.created_at);
+    const showTimeStamp = !prevInverted ||
+      createdAt.getTime() - new Date(prevInverted.created_at).getTime() > 30 * 60_000;
+    // Show per-bubble time for sender's own messages (WhatsApp style)
+    const timeStr = createdAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    // "Seen" tick only on the last message sent by me
+    const isLastMine = mine && index === 0; // index 0 is newest in inverted list
+    const showSeen = isLastMine && !item.pending && (item.is_read || readByThem);
     return (
       <View>
-        {showTime ? <Text style={styles.stamp}>{new Date(item.created_at).toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' })}</Text> : null}
+        {showTimeStamp ? (
+          <Text style={styles.stamp}>
+            {createdAt.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' })}
+          </Text>
+        ) : null}
         <View style={[styles.bubbleRow, mine ? styles.right : styles.left]}>
-          <View style={[styles.bubble, mine ? styles.mine : styles.theirs, item.message_type === 'image' && styles.imageBubble, item.pending && styles.pending]}>
+          <View
+            style={[styles.bubble, mine ? styles.mine : styles.theirs, item.message_type === 'image' && styles.imageBubble, item.pending && styles.pending]}
+          >
             {item.message_type === 'image' && item.media_url ? (
               <Pressable onPress={() => openMedia(item.media_url!)} accessibilityRole="button" accessibilityLabel="View full image">
                 <Image source={{ uri: item.media_url }} style={styles.image} />
@@ -198,18 +216,26 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
             ) : (
               <Text style={[styles.text, mine && styles.textMine]}>{item.content}</Text>
             )}
+            {/* WhatsApp-style inline time + seen status */}
+            <View style={[styles.bubbleMeta, mine ? styles.bubbleMetaMine : styles.bubbleMetaTheirs]}>
+              <Text style={[styles.bubbleTime, mine && styles.bubbleTimeMine]}>{timeStr}</Text>
+              {mine ? (
+                <Text style={[styles.bubbleStatus, showSeen && styles.bubbleStatusSeen]}>
+                  {item.pending ? '○' : showSeen ? '✓✓' : '✓'}
+                </Text>
+              ) : null}
+            </View>
           </View>
         </View>
       </View>
     );
   };
 
-  const last = messages[messages.length - 1];
-  const seen = !!last && !last.pending && last.sender_id === me.user_id && (last.is_read || readByThem);
+
 
   return (
     <GradientBackground variant="soft">
-      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+      <SafeAreaView style={styles.flex} edges={['top']}>
         <View style={styles.header}>
           <IconButton accessibilityLabel="Back to chats" onPress={onBack} variant="white">
             <ArrowLeft />
@@ -228,11 +254,7 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
           </IconButton>
         </View>
 
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={0}
-        >
+        <KeyboardAvoidingView style={styles.flex} behavior="padding">
           {history.isLoading ? (
             <ActivityIndicator style={styles.flex} color={Colors.primary} />
           ) : history.isError ? (
@@ -250,25 +272,29 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
               keyboardShouldPersistTaps="handled"
               ListFooterComponent={
                 <>
-                  {seen ? <Text style={styles.seen}>Seen {timeAgo(last.created_at)}</Text> : null}
                   {typing ? <Text style={styles.typing}>{chat.name.split(' ')[0]} is typing…</Text> : null}
                 </>
               }
               ListHeaderComponent={
-                history.isLoading ? null :
-                messages.length === 0 ? (
+                history.isLoading || messages.length > 0 ? undefined : (
                   <View style={styles.center}>
                     <Avatar uri={chat.photo} name={chat.name} size={88} ring />
                     <Text style={styles.emptyTitle}>You matched with {chat.name.split(' ')[0]}</Text>
                     <Text style={styles.emptySub}>It starts with a Ping. Say hi 👋</Text>
                   </View>
-                ) : null
+                )
               }
             />
           )}
 
-          {error ? <Text style={styles.errBar}>{error}</Text> : null}
-          <View style={styles.composer}>
+          {/* Error bar anchored above the composer */}
+          {error ? (
+            <View style={styles.errBarWrap}>
+              <Text style={styles.errBar}>{error}</Text>
+            </View>
+          ) : null}
+          {/* Composer: 4 px gap above keyboard, home indicator below */}
+          <View style={[styles.composer, { paddingBottom: composerPadBottom }]}>
             <IconButton accessibilityLabel="Send a photo" onPress={sendPhoto} disabled={uploading} variant="white" size={44}>
               {uploading ? <ActivityIndicator size="small" color={Colors.primary} /> : <ImageIcon />}
             </IconButton>
@@ -282,11 +308,20 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
               maxLength={MAX_LEN}
               accessibilityLabel="Message"
             />
-            <IconButton accessibilityLabel="Send" onPress={send} disabled={!text.trim()} variant="primary" size={44}>
+            <IconButton accessibilityLabel="Send" onPress={send} disabled={!text.trim() || uploading} variant="primary" size={44}>
               <Send size={18} />
             </IconButton>
           </View>
         </KeyboardAvoidingView>
+
+        {uploading ? (
+          <Pressable style={styles.uploadOverlay} accessibilityLiveRegion="polite" accessibilityLabel="Uploading photo">
+            <View style={styles.uploadCard}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.uploadText}>Sending photo…</Text>
+            </View>
+          </Pressable>
+        ) : null}
 
         <ProfileSheet
           visible={profileOpen}
@@ -315,7 +350,7 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
   left: { justifyContent: 'flex-start' },
   right: { justifyContent: 'flex-end' },
-  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingVertical: 10, borderRadius: 20 },
+  bubble: { maxWidth: '78%', paddingHorizontal: 14, paddingTop: 10, paddingBottom: 4, borderRadius: 20 },
   mine: { backgroundColor: Colors.primary, borderBottomRightRadius: 6 },
   theirs: { backgroundColor: Colors.white, borderBottomLeftRadius: 6 },
   imageBubble: { padding: 4 },
@@ -323,13 +358,32 @@ const styles = StyleSheet.create({
   text: { ...Typography.body, color: Colors.ink },
   textMine: { color: Colors.white },
   image: { width: 220, height: 260, borderRadius: 16, backgroundColor: Colors.primarySoft },
+  // WhatsApp-style bubble meta (time + tick)
+  bubbleMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, justifyContent: 'flex-end' },
+  bubbleMetaMine: { justifyContent: 'flex-end' },
+  bubbleMetaTheirs: { justifyContent: 'flex-start' },
+  bubbleTime: { fontSize: 10, color: 'rgba(0,0,0,0.4)', lineHeight: 13 },
+  bubbleTimeMine: { color: 'rgba(255,255,255,0.7)' },
+  bubbleStatus: { fontSize: 11, color: 'rgba(255,255,255,0.55)', lineHeight: 13 },
+  bubbleStatusSeen: { color: '#7DD3FC' }, // blue ticks
   seen: { ...Typography.caption, color: Colors.mute, textAlign: 'right', marginTop: 4 },
   typing: { ...Typography.caption, color: Colors.primaryDeep, marginTop: 6 },
   emptyTitle: { ...Typography.heading, color: Colors.ink, marginTop: 14 },
   emptySub: { ...Typography.body, color: Colors.mute, marginTop: 4 },
   err: { ...Typography.body, color: Colors.danger, textAlign: 'center', padding: 24 },
-  errBar: { ...Typography.caption, color: Colors.danger, paddingHorizontal: 20, paddingBottom: 6 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  errBarWrap: { marginHorizontal: 12, marginBottom: 4, borderRadius: 10, backgroundColor: 'rgba(220,53,69,0.08)', paddingHorizontal: 12, paddingVertical: 6 },
+  errBar: { ...Typography.caption, color: Colors.danger, textAlign: 'center' },
+  uploadOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(18,16,22,0.35)', alignItems: 'center', justifyContent: 'center' },
+  uploadCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Radius.card,
+    paddingHorizontal: 28,
+    paddingVertical: 22,
+    alignItems: 'center',
+    gap: 10,
+  },
+  uploadText: { ...Typography.label, color: Colors.ink },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 },
   input: {
     flex: 1,
     minHeight: 44,

@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, Modal, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { ArrowLeft, Chip, Close, Heart, IconButton, More } from '../../ui';
+import { ArrowLeft, ChatIcon, Chip, Close, Heart, IconButton, More } from '../../ui';
 import { profileApi } from '../../api/profile';
 import { unwrap } from '../../api/client';
-import { DiscoverCandidate } from '../../api/types';
+import { DiscoverCandidate, MatchItem } from '../../api/types';
 import { distanceLabel } from './DeckContext';
 import { SafetySheet } from './SafetySheet';
 
@@ -25,6 +25,8 @@ interface Props {
   /** Called after block / unmatch so the parent can leave the chat etc. */
   onSafetyAction?: (kind: 'blocked' | 'reported' | 'unmatched') => void;
   matchId?: string | null;
+  /** Called when user taps the chat button (only shown when already matched). */
+  onOpenChat?: (match: MatchItem) => void;
 }
 
 /** S16 — full profile of another user. */
@@ -37,7 +39,7 @@ export const ProfileSheet: React.FC<Props> = props => (
   </Modal>
 );
 
-const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId }) => {
+const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId, onOpenChat }) => {
   const insets = useSafeAreaInsets();
   const id = candidate?.user_id ?? userId ?? null;
   const [menu, setMenu] = useState(false);
@@ -128,6 +130,7 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
           ) : null}
         </View>
 
+        {/* Like/Pass action buttons (from Discover) */}
         {onLike || onPass ? (
           <View style={[styles.actions, { bottom: insets.bottom + 24 }]}>
             {onPass ? (
@@ -140,6 +143,35 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
                 <Heart size={30} />
               </IconButton>
             ) : null}
+          </View>
+        ) : null}
+
+        {/* Chat button — only visible when already matched */}
+        {matchId && onOpenChat && !onLike && !onPass ? (
+          <View style={[styles.chatBar, { paddingBottom: insets.bottom + 16 }]}>
+            <Pressable
+              style={({ pressed }) => [styles.chatBtn, pressed && styles.chatBtnPressed]}
+              onPress={() => {
+                onClose();
+                onOpenChat({
+                  match_id: matchId,
+                  chat_id: null,
+                  matched_at: '',
+                  has_conversation: true,
+                  last_message: null,
+                  matched_user: {
+                    user_id: id ?? '',
+                    full_name: name,
+                    age: age ?? null,
+                    profile_picture: photos[0] ? { photo_id: null, photo_url: photos[0] } : null,
+                  },
+                });
+              }}
+              accessibilityLabel={`Message ${name.split(' ')[0]}`}
+            >
+              <ChatIcon size={18} color={Colors.white} />
+              <Text style={styles.chatBtnText}>Message {name.split(' ')[0]}</Text>
+            </Pressable>
           </View>
         ) : null}
 
@@ -185,4 +217,27 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   topBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
   actions: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28 },
+  // Chat CTA
+  chatBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    backgroundColor: 'rgba(246,243,251,0.95)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(18,16,22,0.06)',
+  },
+  chatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.pill,
+    paddingVertical: 14,
+  },
+  chatBtnPressed: { opacity: 0.8 },
+  chatBtnText: { ...Typography.bodyStrong, color: Colors.white, fontSize: 16 },
 });

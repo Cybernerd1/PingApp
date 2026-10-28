@@ -14,6 +14,10 @@ export interface AppNotification {
   read: boolean;
   chatId?: string;
   avatarUrl?: string;
+  /** What triggered it — decides where a tap lands (profile vs chat). */
+  kind?: 'message' | 'match' | 'like';
+  /** The other user in the notification (for opening their profile). */
+  userId?: string;
 }
 
 interface Ctx {
@@ -27,6 +31,12 @@ interface Ctx {
 }
 
 const NotificationsContext = createContext<Ctx | null>(null);
+
+/** Wipe the saved inbox (called on logout / session expiry so the next account
+ *  never sees previous user's notifications). */
+export function clearStoredNotifications(): void {
+  AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+}
 
 /** In-app notification inbox (fed by realtime events and foreground pushes). */
 export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -70,7 +80,10 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   }, []);
   const markAllRead = useCallback(() => setItems(prev => prev.map(i => ({ ...i, read: true }))), []);
-  const clear = useCallback(() => setItems([]), []);
+  const clear = useCallback(() => {
+    clearStoredNotifications();
+    setItems([]);
+  }, []);
   const value = useMemo(
     () => ({ items, unread: items.filter(i => !i.read).length, add, markAllRead, clear, sheetOpen, setSheetOpen }),
     [items, add, markAllRead, clear, sheetOpen],

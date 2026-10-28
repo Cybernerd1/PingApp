@@ -112,12 +112,22 @@ export function useConfirmDialog() {
   const showDialog = (opts: Omit<DialogState, 'visible'>) =>
     setState({ ...opts, visible: true });
 
+  // Wrap each button so pressing any of them always closes the dialog first,
+  // then executes the caller-provided handler.
+  const wrappedButtons: DialogButton[] = state.buttons.map(btn => ({
+    ...btn,
+    onPress: () => {
+      dismiss();
+      btn.onPress();
+    },
+  }));
+
   const dialog = (
     <ConfirmDialog
       visible={state.visible}
       title={state.title}
       message={state.message}
-      buttons={state.buttons}
+      buttons={wrappedButtons}
       onDismiss={dismiss}
     >
       {state.children}
@@ -131,7 +141,11 @@ export function useConfirmDialog() {
 const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(18, 16, 22, 0.55)',
   },
   card: {

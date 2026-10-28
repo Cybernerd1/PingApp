@@ -1,0 +1,106 @@
+diff --git a/node_modules/react-native-nitro-modules/android/build.gradle b/node_modules/react-native-nitro-modules/android/build.gradle
+index f564aad..384f148 100644
+--- a/node_modules/react-native-nitro-modules/android/build.gradle
++++ b/node_modules/react-native-nitro-modules/android/build.gradle
+@@ -21,7 +21,15 @@ def isNewArchitectureEnabled() {
+ }
+ 
+ apply plugin: "com.android.library"
+-apply plugin: 'org.jetbrains.kotlin.android'
++// AGP 9 ships built-in Kotlin support and registers the `kotlin` extension
++// itself (KGP applied BEFORE com.android.library fails with "'kotlin-android'
++// plugin requires one of the Android Gradle plugins"). Applying the Kotlin
++// plugin on top of it fails configuration with "Cannot add extension with name
++// 'kotlin'". Only apply it when nothing has registered that extension yet.
++// (Upstream fix: margelo/react-native-mmkv#1090)
++if (project.extensions.findByName('kotlin') == null) {
++  apply plugin: 'org.jetbrains.kotlin.android'
++}
+ apply from: "./fix-prefab.gradle"
+ 
+ if (isNewArchitectureEnabled()) {
+@@ -42,11 +50,13 @@ android {
+   namespace "com.margelo.nitro"
+ 
+   ndkVersion getExtOrDefault("ndkVersion")
+-  compileSdkVersion getExtOrIntegerDefault("compileSdkVersion")
++  // AGP 9 removed the legacy `compileSdkVersion`/`minSdkVersion`/`targetSdkVersion`
++  // DSL — calls would silently no-op and leave compileSdk unset.
++  compileSdk getExtOrIntegerDefault("compileSdkVersion")
+ 
+   defaultConfig {
+-    minSdkVersion getExtOrIntegerDefault("minSdkVersion")
+-    targetSdkVersion getExtOrIntegerDefault("targetSdkVersion")
++    minSdk getExtOrIntegerDefault("minSdkVersion")
++    targetSdk getExtOrIntegerDefault("targetSdkVersion")
+     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+ 
+     externalNativeBuild {
+@@ -124,13 +134,21 @@ android {
+   sourceSets {
+     main {
+       if (isNewArchitectureEnabled()) {
++        // AGP 9: KGP compiles the `kotlin` source dirs; legacy `java.srcDirs`
++        // additions were silently dropped from the Kotlin compile unit, so the
++        // variant-specific sources never reached the compiler. Add to BOTH.
+         java.srcDirs += [
+           // React Codegen files
+           "${project.buildDir}/generated/source/codegen/java",
+           "src/newarch"
+         ]
++        kotlin.srcDirs += [
++          "${project.buildDir}/generated/source/codegen/java",
++          "src/newarch"
++        ]
+       } else {
+         java.srcDirs += ["src/oldarch"]
++        kotlin.srcDirs += ["src/oldarch"]
+       }
+     }
+   }
+diff --git a/node_modules/react-native-nitro-modules/android/fix-prefab.gradle b/node_modules/react-native-nitro-modules/android/fix-prefab.gradle
+index d6c010e..3207ca2 100644
+--- a/node_modules/react-native-nitro-modules/android/fix-prefab.gradle
++++ b/node_modules/react-native-nitro-modules/android/fix-prefab.gradle
+@@ -13,7 +13,6 @@ tasks.configureEach { task ->
+ }
+ 
+ afterEvaluate {
+-  def abis = reactNativeArchitectures()
+   rootProject.allprojects.each { proj ->
+     if (proj === rootProject) return
+ 
+@@ -28,22 +27,20 @@ afterEvaluate {
+       return
+     }
+ 
+-    def variants = proj.android.hasProperty('applicationVariants') ? proj.android.applicationVariants : proj.android.libraryVariants
++    def variants = []
++    // Enumerate variants/abis from the .cxx directory itself: AGP 9 removed
++    // `libraryVariants`, and `onVariants` cannot be registered this late
++    // (afterEvaluate) — the filesystem tells us exactly what exists.
++    def cxxRoot = new File(proj.projectDir, ".cxx")
++    if (!cxxRoot.exists()) return
+     // Touch the prefab_config.json files to ensure that in ExternalNativeJsonGenerator.kt we will re-trigger the prefab CLI to
+     // generate a libnameConfig.cmake file that will contain our native library (.so).
+     // See this condition: https://cs.android.com/android-studio/platform/tools/base/+/mirror-goog-studio-main:build-system/gradle-core/src/main/java/com/android/build/gradle/tasks/ExternalNativeJsonGenerator.kt;l=207-219?q=createPrefabBuildSystemGlue
+-    variants.all { variant ->
+-      def variantName = variant.name
+-      abis.each { abi ->
+-        def searchDir = new File(proj.projectDir, ".cxx/${variantName}")
+-        if (!searchDir.exists()) return
+-        def matches = []
+-        searchDir.eachDir { randomDir ->
+-          def prefabFile = new File(randomDir, "${abi}/prefab_config.json")
+-          if (prefabFile.exists()) matches << prefabFile
+-        }
+-        matches.each { prefabConfig ->
+-          prefabConfig.setLastModified(System.currentTimeMillis())
++    cxxRoot.eachDir { variantDir ->
++      variantDir.eachDir { abiDir ->
++        def prefabFile = new File(abiDir, "prefab_config.json")
++        if (prefabFile.exists()) {
++          prefabFile.setLastModified(System.currentTimeMillis())
+         }
+       }
+     }

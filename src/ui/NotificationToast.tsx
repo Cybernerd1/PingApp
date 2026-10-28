@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -39,35 +39,31 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   toast,
   onDismiss,
 }) => {
-  const translateY = useSharedValue(-120);
+  const insets = useSafeAreaInsets();
+  // Start fully above the visible screen.
+  const translateY = useSharedValue(-140);
+
+  const dismissToast = () => {
+    translateY.value = withTiming(-140, { duration: 220 }, finished => {
+      'worklet';
+      if (finished && onDismiss) runOnJS(onDismiss)();
+    });
+  };
 
   useEffect(() => {
     if (toast) {
-      translateY.value = withSpring(10, {
+      // Slide in so the card sits 8 px below the safe-area top (status bar / notch).
+      translateY.value = withSpring(insets.top + 8, {
         damping: 14,
         stiffness: 160,
       });
-
-      const timer = setTimeout(() => {
-        dismissToast();
-      }, toast.durationMs || 4500);
-
+      const timer = setTimeout(() => dismissToast(), toast.durationMs ?? 4500);
       return () => clearTimeout(timer);
     } else {
-      translateY.value = withTiming(-120, { duration: 250 });
+      translateY.value = withTiming(-140, { duration: 250 });
     }
-    // Re-run only when a new toast arrives.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toast]);
-
-  const dismissToast = () => {
-    translateY.value = withTiming(-120, { duration: 200 }, (finished) => {
-      'worklet';
-      if (finished && onDismiss) {
-        runOnJS(onDismiss)();
-      }
-    });
-  };
+  }, [toast, insets.top]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
@@ -76,63 +72,60 @@ export const NotificationToast: React.FC<NotificationToastProps> = ({
   if (!toast) return null;
 
   return (
-    <SafeAreaView pointerEvents="box-none" style={styles.toastContainerWrapper}>
-      <Animated.View style={[styles.toastCard, animatedStyle]}>
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={() => {
-            if (toast.onPress) toast.onPress();
-            dismissToast();
-          }}
-          style={styles.toastContentRow}
-        >
-          {/* Avatar or Icon Badge */}
-          {toast.avatarUrl ? (
-            <Image source={{ uri: toast.avatarUrl }} style={styles.toastAvatar} />
-          ) : (
-            <View style={styles.iconBadge}>
-              <Text style={styles.iconText}>{toast.icon || '🔔'}</Text>
-            </View>
-          )}
+    <Animated.View style={[styles.toastCard, animatedStyle]} pointerEvents="box-none">
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={() => {
+          if (toast.onPress) toast.onPress();
+          dismissToast();
+        }}
+        style={styles.toastContentRow}
+      >
+        {/* Avatar or emoji icon badge */}
+        {toast.avatarUrl ? (
+          <Image source={{ uri: toast.avatarUrl }} style={styles.toastAvatar} />
+        ) : (
+          <View style={styles.iconBadge}>
+            <Text style={styles.iconText}>{toast.icon ?? '🔔'}</Text>
+          </View>
+        )}
 
-          {/* Text Meta */}
-          <View style={styles.textMetaContainer}>
-            <View style={styles.headerTitleRow}>
-              <Text style={styles.brandBadge}>PING</Text>
-              <Text style={styles.toastTitle} numberOfLines={1}>
-                {toast.title}
-              </Text>
-            </View>
+        {/* Text: title (sender name) + message body */}
+        <View style={styles.textMetaContainer}>
+          <View style={styles.headerTitleRow}>
+            <Text style={styles.brandBadge}>PING</Text>
+            <Text style={styles.toastTitle} numberOfLines={1}>
+              {toast.title}
+            </Text>
+          </View>
+          {!!toast.message && (
             <Text style={styles.toastMessage} numberOfLines={2}>
               {toast.message}
             </Text>
-          </View>
+          )}
+        </View>
 
-          {/* Quick Dismiss Button */}
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={dismissToast}
-            style={styles.closeBtn}
-          >
-            <Text style={styles.closeBtnText}>✕</Text>
-          </TouchableOpacity>
+        {/* Quick dismiss */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={dismissToast}
+          style={styles.closeBtn}
+          hitSlop={8}
+        >
+          <Text style={styles.closeBtnText}>✕</Text>
         </TouchableOpacity>
-      </Animated.View>
-    </SafeAreaView>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  toastContainerWrapper: {
+  toastCard: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 9999,
-    alignItems: 'center',
-  },
-  toastCard: {
-    width: SCREEN_WIDTH * 0.92,
+    marginHorizontal: SCREEN_WIDTH * 0.04,
     backgroundColor: Colors.white,
     borderRadius: Radius.card,
     paddingHorizontal: 16,
@@ -144,6 +137,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 1,
     borderColor: 'rgba(232, 68, 122, 0.15)',
+    zIndex: 9999,
   },
   toastContentRow: {
     flexDirection: 'row',
@@ -155,6 +149,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     borderWidth: 2,
     borderColor: Colors.magenta,
+    backgroundColor: Colors.primarySoft,
   },
   iconBadge: {
     width: 44,
@@ -193,6 +188,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.plum,
     fontWeight: '700',
+    flexShrink: 1,
   },
   toastMessage: {
     ...Typography.body,

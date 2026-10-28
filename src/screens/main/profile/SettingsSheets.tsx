@@ -28,6 +28,8 @@ export const PrivacySheet: React.FC<{ visible: boolean; onClose: () => void }> =
       if (res.status === 'error' && res.code === 'NOT_FOUND') return DEFAULT_PRIVACY;
       return unwrap(res);
     },
+    staleTime: 30 * 60_000,
+    meta: { persist: true },
     enabled: visible,
   });
   const m = useMutation({
@@ -77,6 +79,8 @@ export const BlockedSheet: React.FC<{ visible: boolean; onClose: () => void }> =
   const q = useQuery({
     queryKey: ['blockedUsers'],
     queryFn: async () => unwrap(await safetyApi.getBlockedUsers()).users,
+    staleTime: 30 * 60_000,
+    meta: { persist: true },
     enabled: visible,
   });
   const unblock = useMutation({

@@ -2,6 +2,9 @@ apply plugin: "com.android.application"
 apply plugin: "com.facebook.react"
 apply plugin: 'com.google.gms.google-services'
 
+base {
+    archivesName = "Ping"
+}
 /**
  * This is the configuration block to customize your React Native Android app.
  * By default you don't need to apply any configuration, just uncomment the lines you need.
@@ -79,8 +82,7 @@ android {
 
     namespace "com.ping"
 
-    // All APK outputs will be named "Ping-<flavor>-<buildType>.apk"
-    archivesBaseName = "Ping"
+    
 
     defaultConfig {
         applicationId "com.ping"

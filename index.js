@@ -2,30 +2,26 @@
  * @format
  */
 
-// react-native-gesture-handler MUST be imported first before any other import
+// MUST be imported before other imports.
 import 'react-native-gesture-handler';
 
 import React from 'react';
 import { AppRegistry } from 'react-native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
 import App from './App';
 import { name as appName } from './app.json';
 import { ErrorBoundary } from './src/ui/ErrorBoundary';
+import { setupFCMBackgroundHandler } from './src/native/fcm';
+import { CacheGate } from './src/cache/CacheProvider';
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      staleTime: 1000 * 60 * 5,
-    },
-  },
-});
+// Register background handling before mounting the React application.
+setupFCMBackgroundHandler();
 
 const RootApp = () => (
   <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
+    <CacheGate>
       <App />
-    </QueryClientProvider>
+    </CacheGate>
   </ErrorBoundary>
 );
 
