@@ -29,7 +29,9 @@ export const SessionProvider: React.FC<{
     queryKey: ME_KEY,
     queryFn: async () => unwrap(await profileApi.getOwnProfile()),
     initialData: initialProfile,
-    staleTime: 60_000,
+    staleTime: 30 * 60_000,
+    // Persisted: instant profile after restart/offline.
+    meta: { persist: true },
   });
 
   const refreshMe = useCallback(async () => {

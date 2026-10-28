@@ -49,6 +49,80 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:0a5f635393902301690db3",
+        "android_client_info": {
+          "package_name": "com.ping.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-ro1jlsaiaab10sbopod5o0umcuhmda5d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ping.dev",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:ac1a3347e91e0f2e690db3",
+        "android_client_info": {
+          "package_name": "com.ping.qa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-rc1auj0mqgnp877hiu3uqa63gicsv3v8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.ping.qa",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

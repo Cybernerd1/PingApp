@@ -1,12 +1,35 @@
+
 /**
  * Firebase Cloud Messaging wrapper.
  *
- * Uses @react-native-firebase/messaging when its native module is present in the
- * installed app. If the APK was built before the package was added, every call
- * is a safe no-op (no fake token, no red-box) — rebuild with `npm run android`.
+ * Uses the React Native Firebase modular API.
+ * Safely handles builds where the native messaging module is unavailable.
  */
-import { NativeModules, PermissionsAndroid, Platform, TurboModuleRegistry } from 'react-native';
+
+import {
+  NativeModules,
+  PermissionsAndroid,
+  Platform,
+  TurboModuleRegistry,
+} from 'react-native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { getApp } from '@react-native-firebase/app';
+
+import {
+  AuthorizationStatus,
+  getMessaging,
+  getToken,
+  getInitialNotification,
+  onMessage,
+  onNotificationOpenedApp,
+  onTokenRefresh as firebaseOnTokenRefresh,
+  requestPermission,
+  setBackgroundMessageHandler,
+} from '@react-native-firebase/messaging';
+
+type Messaging = ReturnType<typeof getMessaging>;
 
 export interface FCMNotificationPayload {
   title: string;
@@ -14,125 +37,251 @@ export interface FCMNotificationPayload {
   data?: Record<string, any>;
 }
 
-type Messaging = typeof import('@react-native-firebase/messaging').default;
-
 let cached: Messaging | null | undefined;
 let warned = false;
 
-/** True when the native RNFB messaging module is compiled into this build. */
+/** Check whether the native messaging module is installed. */
 export const isPushAvailable = (): boolean => {
   const name = 'RNFBMessagingModule';
-  return !!(NativeModules[name] ?? TurboModuleRegistry.get(name));
-};
 
+  return !!(NativeModules[name] ?? TurboModuleRegistry.get(name));
+}
+
+/** Return the modular Firebase Messaging instance. */
 function messagingModule(): Messaging | null {
-  if (cached !== undefined) return cached;
+  if (cached !== undefined) {
+    return cached;
+  }
+
   if (!isPushAvailable()) {
     if (__DEV__ && !warned) {
       warned = true;
       console.warn(
-        '[FCM] Native messaging module is not in this build — push is disabled. ' +
-          'Rebuild the app: npm install && npm run android',
+        '[FCM] Native messaging module is unavailable. ' +
+          'Rebuild the app using npm run android.',
       );
     }
+
     cached = null;
     return cached;
   }
-  cached = require('@react-native-firebase/messaging').default as Messaging;
+
+  try {
+    cached = getMessaging(getApp());
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        '[FCM] Failed to initialize messaging:',
+        (error as Error)?.message,
+      );
+    }
+
+    cached = null;
+  }
+
   return cached;
 }
 
-/** Must run at bundle load (index.js) so Android can deliver data while the app is closed. */
-export const setupFCMBackgroundHandler = () => {
-  const m = messagingModule();
-  m?.().setBackgroundMessageHandler(async msg => {
-    // The OS displays the notification itself; also keep it in the in-app inbox
-    // so it stays there until the user clears it.
-    try {
-      const raw = await AsyncStorage.getItem('ping.notifications.v1');
-      const list = raw ? JSON.parse(raw) : [];
-      const type = msg.data?.type;
-      list.unshift({
-        id: `${Date.now()}-${msg.messageId ?? Math.random().toString(36).slice(2, 7)}`,
-        title: msg.notification?.title ?? 'Ping',
-        body: msg.notification?.body ?? '',
-        icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
-        at: Date.now(),
-        read: false,
-        chatId: msg.data?.chat_id,
-        avatarUrl: msg.data?.avatar_url,
-      });
-      await AsyncStorage.setItem('ping.notifications.v1', JSON.stringify(list.slice(0, 200)));
-    } catch {
-      // best effort
-    }
-  });
-};
+/**
+ * Register once at application bundle load, in index.js.
+ * Do not call this from a React component or useEffect.
+ */
+export const setupFCMBackgroundHandler = (): void => {
+  const messaging = messagingModule();
 
-/** Android 13+ runtime permission + iOS authorization. */
-export const requestNotificationPermission = async (): Promise<boolean> => {
+  if (!messaging) {
+    return;
+  }
+
   try {
-    if (Platform.OS === 'android') {
-      if (Platform.Version < 33) return true;
-      const res = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
-      return res === PermissionsAndroid.RESULTS.GRANTED;
+    setBackgroundMessageHandler(messaging, async msg => {
+      // Android displays notification payloads through the OS when
+      // appropriate. Persist the event for the in-app notification inbox.
+      try {
+        const raw = await AsyncStorage.getItem('ping.notifications.v1');
+
+        const list: Array<Record<string, any>> = raw
+          ? JSON.parse(raw)
+          : [];
+
+        const type = msg.data?.type;
+
+        list.unshift({
+          id: `${Date.now()}-${
+            msg.messageId ?? Math.random().toString(36).slice(2, 7)
+          }`,
+          title:
+            msg.notification?.title ??
+            msg.data?.sender_name ??
+            'Ping',
+          body: msg.notification?.body ?? '',
+          icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
+          at: Date.now(),
+          read: false,
+          kind:
+            type === 'match'
+              ? 'match'
+              : type === 'like'
+                ? 'like'
+                : 'message',
+          chatId: msg.data?.chat_id,
+          avatarUrl: msg.data?.avatar_url,
+        });
+
+        await AsyncStorage.setItem(
+          'ping.notifications.v1',
+          JSON.stringify(list.slice(0, 200)),
+        );
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[FCM] Failed to persist background message:', error);
+        }
+      }
+    });
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        '[FCM] Background handler registration failed:',
+        (error as Error)?.message,
+      );
     }
-    const m = messagingModule();
-    if (!m) return false;
-    const status = await m().requestPermission();
-    return status === m.AuthorizationStatus.AUTHORIZED || status === m.AuthorizationStatus.PROVISIONAL;
-  } catch {
-    return false;
   }
 };
 
-/** Real FCM registration token, or null if push isn't available in this build. */
+/** Android 13+ runtime permission and iOS notification authorization. */
+export const requestNotificationPermission =
+  async (): Promise<boolean> => {
+    try {
+      if (Platform.OS === 'android') {
+        if (Number(Platform.Version) < 33) {
+          return true;
+        }
+
+        const result = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+        );
+
+        return result === PermissionsAndroid.RESULTS.GRANTED;
+      }
+
+      if (Platform.OS === 'ios') {
+        const messaging = messagingModule();
+
+        if (!messaging) {
+          return false;
+        }
+
+        const status = await requestPermission(messaging);
+
+        return (
+          status === AuthorizationStatus.AUTHORIZED ||
+          status === AuthorizationStatus.PROVISIONAL
+        );
+      }
+
+      return false;
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[FCM] Permission request failed:', error);
+      }
+
+      return false;
+    }
+  };
+
+/** Get the actual FCM registration token, or null when unavailable. */
 export const getFCMToken = async (): Promise<string | null> => {
-  const m = messagingModule();
-  if (!m) return null;
+  const messaging = messagingModule();
+
+  if (!messaging) {
+    return null;
+  }
+
   try {
-    const token = await m().getToken();
-    if (__DEV__) console.log('[FCM] token:', token);
+    const token = await getToken(messaging);
+
+    if (__DEV__) {
+      console.log('[FCM] Token retrieved successfully');
+    }
+
     return token;
-  } catch (e) {
-    if (__DEV__) console.warn('[FCM] getToken failed:', (e as Error)?.message);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(
+        '[FCM] Token retrieval failed:',
+        (error as Error)?.message,
+      );
+    }
+
     return null;
   }
 };
 
-/** Token rotation. Returns an unsubscribe fn. */
-export const onTokenRefresh = (cb: (token: string) => void): (() => void) => {
-  const m = messagingModule();
-  return m ? m().onTokenRefresh(cb) : () => {};
+/** Subscribe to token rotation. Returns an unsubscribe function. */
+export const onTokenRefresh = (
+  callback: (token: string) => void,
+): (() => void) => {
+  const messaging = messagingModule();
+
+  return messaging
+    ? firebaseOnTokenRefresh(messaging, callback)
+    : () => {};
 };
 
 /**
- * A notification was tapped while the app was in the background, or the app
- * was launched by tapping one. `cb` receives the push `data` (e.g. chat_id).
+ * Handles notifications tapped while the app is in the background
+ * or launched from a terminated state.
  */
-export const onNotificationOpened = (cb: (data: Record<string, any>) => void): (() => void) => {
-  const m = messagingModule();
-  if (!m) return () => {};
-  m()
-    .getInitialNotification()
-    .then(msg => {
-      if (msg?.data) cb(msg.data);
+export const onNotificationOpened = (
+  callback: (data: Record<string, any>) => void,
+): (() => void) => {
+  const messaging = messagingModule();
+
+  if (!messaging) {
+    return () => {};
+  }
+
+  let active = true;
+
+  getInitialNotification(messaging)
+    .then(message => {
+      if (active && message?.data) {
+        callback(message.data);
+      }
     })
-    .catch(() => {});
-  return m().onNotificationOpenedApp(msg => {
-    if (msg?.data) cb(msg.data);
+    .catch(error => {
+      if (__DEV__) {
+        console.warn('[FCM] Initial notification lookup failed:', error);
+      }
+    });
+
+  const unsubscribe = onNotificationOpenedApp(messaging, message => {
+    if (active && message?.data) {
+      callback(message.data);
+    }
   });
+
+  return () => {
+    active = false;
+    unsubscribe();
+  };
 };
 
-/** Pushes that arrive while the app is open (the OS doesn't show these). */
-export const onForegroundMessage = (listener: (p: FCMNotificationPayload) => void): (() => void) => {
-  const m = messagingModule();
-  if (!m) return () => {};
-  return m().onMessage(async msg => {
+/** Listen for push messages while the app is in the foreground. */
+export const onForegroundMessage = (
+  listener: (payload: FCMNotificationPayload) => void,
+): (() => void) => {
+  const messaging = messagingModule();
+
+  if (!messaging) {
+    return () => {};
+  }
+
+  return onMessage(messaging, async message => {
     listener({
-      title: msg.notification?.title ?? 'Ping',
-      body: msg.notification?.body ?? '',
-      data: msg.data,
+      title: message.notification?.title ?? 'Ping',
+      body: message.notification?.body ?? '',
+      data: message.data,
     });
   });
 };

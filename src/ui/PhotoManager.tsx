@@ -36,6 +36,8 @@ export const PhotoManager: React.FC<Props> = ({ onChange, gutter = 24 }) => {
   const photos = useQuery({
     queryKey: PHOTOS_KEY,
     queryFn: async () => unwrap(await photosApi.getPhotos()).photos,
+    staleTime: 30 * 60_000,
+    meta: { persist: true },
   });
   const [pending, setPending] = useState<Pending[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);

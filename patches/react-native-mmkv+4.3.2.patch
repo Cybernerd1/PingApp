@@ -1,0 +1,556 @@
+diff --git a/node_modules/react-native-mmkv/android/build.gradle b/node_modules/react-native-mmkv/android/build.gradle
+index e2aa501..d837436 100644
+--- a/node_modules/react-native-mmkv/android/build.gradle
++++ b/node_modules/react-native-mmkv/android/build.gradle
+@@ -19,7 +19,13 @@ def isNewArchitectureEnabled() {
+ }
+ 
+ apply plugin: "com.android.library"
+-apply plugin: 'org.jetbrains.kotlin.android'
++// AGP 9 ships built-in Kotlin support and registers the `kotlin` extension
++// itself. Applying the Kotlin plugin on top of it fails configuration with
++// "Cannot add extension with name 'kotlin'". Only apply it when nothing has
++// registered that extension yet. (Upstream fix: margelo/react-native-mmkv#1090)
++if (project.extensions.findByName('kotlin') == null) {
++  apply plugin: 'org.jetbrains.kotlin.android'
++}
+ apply from: '../nitrogen/generated/android/NitroMmkv+autolinking.gradle'
+ apply from: "./fix-prefab.gradle"
+ 
+@@ -39,11 +45,13 @@ android {
+   namespace = "com.margelo.nitro.mmkv"
+ 
+   ndkVersion = getExtOrDefault("ndkVersion")
+-  compileSdkVersion = getExtOrIntegerDefault("compileSdkVersion")
++  // AGP 9 removed the legacy `compileSdkVersion`/`minSdkVersion`/`targetSdkVersion`
++  // DSL — assignments would silently no-op and leave compileSdk unset.
++  compileSdk = getExtOrIntegerDefault("compileSdkVersion")
+ 
+   defaultConfig {
+-    minSdkVersion = getExtOrIntegerDefault("minSdkVersion")
+-    targetSdkVersion = getExtOrIntegerDefault("targetSdkVersion")
++    minSdk = getExtOrIntegerDefault("minSdkVersion")
++    targetSdk = getExtOrIntegerDefault("targetSdkVersion")
+     buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", isNewArchitectureEnabled().toString()
+ 
+     externalNativeBuild {
+@@ -124,6 +132,15 @@ android {
+           // React Codegen files
+           "${project.buildDir}/generated/source/codegen/java"
+         ]
++        // AGP 9: KGP compiles the `kotlin` source dirs; legacy `java.srcDirs`
++        // additions were silently dropped from the Kotlin compile unit, so the
++        // codegen + nitrogen-generated Kotlin never reached the compiler.
++        kotlin.srcDirs += [
++          "${project.buildDir}/generated/source/codegen/java",
++          // Nitrogen-generated specs (added via java.srcDirs in
++          // ../nitrogen/generated/android/NitroMmkv+autolinking.gradle).
++          "${project.projectDir}/../nitrogen/generated/android/kotlin"
++        ]
+       }
+     }
+   }
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/buildConfig/debug/com/margelo/nitro/mmkv/BuildConfig.java b/node_modules/react-native-mmkv/android/build/generated/source/buildConfig/debug/com/margelo/nitro/mmkv/BuildConfig.java
+new file mode 100644
+index 0000000..4f88683
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/buildConfig/debug/com/margelo/nitro/mmkv/BuildConfig.java
+@@ -0,0 +1,12 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package com.margelo.nitro.mmkv;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = Boolean.parseBoolean("true");
++  public static final String LIBRARY_PACKAGE_NAME = "com.margelo.nitro.mmkv";
++  public static final String BUILD_TYPE = "debug";
++  // Field from default config.
++  public static final boolean IS_NEW_ARCHITECTURE_ENABLED = true;
++}
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/CMakeLists.txt b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/CMakeLists.txt
+new file mode 100644
+index 0000000..c29b051
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/CMakeLists.txt
+@@ -0,0 +1,28 @@
++# Copyright (c) Meta Platforms, Inc. and affiliates.
++#
++# This source code is licensed under the MIT license found in the
++# LICENSE file in the root directory of this source tree.
++
++cmake_minimum_required(VERSION 3.13)
++set(CMAKE_VERBOSE_MAKEFILE on)
++
++file(GLOB react_codegen_SRCS CONFIGURE_DEPENDS *.cpp react/renderer/components/ReactNativeMmkvSpec/*.cpp)
++
++add_library(
++  react_codegen_ReactNativeMmkvSpec
++  OBJECT
++  ${react_codegen_SRCS}
++)
++
++target_include_directories(react_codegen_ReactNativeMmkvSpec PUBLIC . react/renderer/components/ReactNativeMmkvSpec)
++
++target_link_libraries(
++  react_codegen_ReactNativeMmkvSpec
++  fbjni
++  jsi
++  # We need to link different libraries based on whether we are building rncore or not, that's necessary
++  # because we want to break a circular dependency between react_codegen_rncore and reactnative
++  reactnative
++)
++
++target_compile_reactnative_options(react_codegen_ReactNativeMmkvSpec PRIVATE)
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec-generated.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec-generated.cpp
+new file mode 100644
+index 0000000..058c481
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec-generated.cpp
+@@ -0,0 +1,22 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateModuleJniCpp.js
++ */
++
++#include "ReactNativeMmkvSpec.h"
++
++namespace facebook::react {
++
++
++
++std::shared_ptr<TurboModule> ReactNativeMmkvSpec_ModuleProvider(const std::string &moduleName, const JavaTurboModule::InitParams &params) {
++
++  return nullptr;
++}
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec.h
+new file mode 100644
+index 0000000..ed0b563
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/ReactNativeMmkvSpec.h
+@@ -0,0 +1,24 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateModuleJniH.js
++ */
++
++#pragma once
++
++#include <ReactCommon/JavaTurboModule.h>
++#include <ReactCommon/TurboModule.h>
++#include <jsi/jsi.h>
++
++namespace facebook::react {
++
++
++
++JSI_EXPORT
++std::shared_ptr<TurboModule> ReactNativeMmkvSpec_ModuleProvider(const std::string &moduleName, const JavaTurboModule::InitParams &params);
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.cpp
+new file mode 100644
+index 0000000..10dada5
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.cpp
+@@ -0,0 +1,22 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateComponentDescriptorCpp.js
++ */
++
++#include <react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.h>
++#include <react/renderer/core/ConcreteComponentDescriptor.h>
++#include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
++
++namespace facebook::react {
++
++void ReactNativeMmkvSpec_registerComponentDescriptorsFromCodegen(
++  std::shared_ptr<const ComponentDescriptorProviderRegistry> registry) {
++
++}
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.h
+new file mode 100644
+index 0000000..fb7f3eb
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ComponentDescriptors.h
+@@ -0,0 +1,24 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateComponentDescriptorH.js
++ */
++
++#pragma once
++
++#include <react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.h>
++#include <react/renderer/core/ConcreteComponentDescriptor.h>
++#include <react/renderer/componentregistry/ComponentDescriptorProviderRegistry.h>
++
++namespace facebook::react {
++
++
++
++void ReactNativeMmkvSpec_registerComponentDescriptorsFromCodegen(
++  std::shared_ptr<const ComponentDescriptorProviderRegistry> registry);
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.cpp
+new file mode 100644
+index 0000000..0e3cfdb
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.cpp
+@@ -0,0 +1,16 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateEventEmitterCpp.js
++ */
++
++#include <react/renderer/components/ReactNativeMmkvSpec/EventEmitters.h>
++
++
++namespace facebook::react {
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.h
+new file mode 100644
+index 0000000..2845a63
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/EventEmitters.h
+@@ -0,0 +1,17 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateEventEmitterH.js
++ */
++#pragma once
++
++#include <react/renderer/components/view/ViewEventEmitter.h>
++
++
++namespace facebook::react {
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.cpp
+new file mode 100644
+index 0000000..3b3a654
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.cpp
+@@ -0,0 +1,19 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GeneratePropsCpp.js
++ */
++
++#include <react/renderer/components/ReactNativeMmkvSpec/Props.h>
++#include <react/renderer/core/PropsParserContext.h>
++#include <react/renderer/core/propsConversions.h>
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.h
+new file mode 100644
+index 0000000..870864b
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/Props.h
+@@ -0,0 +1,18 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GeneratePropsH.js
++ */
++#pragma once
++
++
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ReactNativeMmkvSpecJSI.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ReactNativeMmkvSpecJSI.h
+new file mode 100644
+index 0000000..ec16260
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ReactNativeMmkvSpecJSI.h
+@@ -0,0 +1,19 @@
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateModuleH.js
++ */
++
++#pragma once
++
++#include <ReactCommon/TurboModule.h>
++#include <react/bridging/Bridging.h>
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.cpp
+new file mode 100644
+index 0000000..18053fd
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.cpp
+@@ -0,0 +1,17 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateShadowNodeCpp.js
++ */
++
++#include <react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.h>
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.h
+new file mode 100644
+index 0000000..640fc60
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/ShadowNodes.h
+@@ -0,0 +1,23 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateShadowNodeH.js
++ */
++
++#pragma once
++
++#include <react/renderer/components/ReactNativeMmkvSpec/EventEmitters.h>
++#include <react/renderer/components/ReactNativeMmkvSpec/Props.h>
++#include <react/renderer/components/ReactNativeMmkvSpec/States.h>
++#include <react/renderer/components/view/ConcreteViewShadowNode.h>
++#include <jsi/jsi.h>
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.cpp b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.cpp
+new file mode 100644
+index 0000000..68feee3
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.cpp
+@@ -0,0 +1,16 @@
++
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateStateCpp.js
++ */
++#include <react/renderer/components/ReactNativeMmkvSpec/States.h>
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.h b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.h
+new file mode 100644
+index 0000000..2e55bce
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/jni/react/renderer/components/ReactNativeMmkvSpec/States.h
+@@ -0,0 +1,20 @@
++/**
++ * This code was generated by [react-native-codegen](https://www.npmjs.com/package/react-native-codegen).
++ *
++ * Do not edit this file as changes may cause incorrect behavior and will be lost
++ * once the code is regenerated.
++ *
++ * @generated by codegen project: GenerateStateH.js
++ */
++#pragma once
++
++#include <react/renderer/core/StateData.h>
++#ifdef RN_SERIALIZABLE_STATE
++#include <folly/dynamic.h>
++#endif
++
++namespace facebook::react {
++
++
++
++} // namespace facebook::react
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/generated/source/codegen/schema.json b/node_modules/react-native-mmkv/android/build/generated/source/codegen/schema.json
+new file mode 100644
+index 0000000..c845b54
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/generated/source/codegen/schema.json
+@@ -0,0 +1 @@
++{"libraryName":"","modules":{}}
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/react-native-mmkv/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/react-native-mmkv/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..745fc95
+Binary files /dev/null and b/node_modules/react-native-mmkv/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/react-native-mmkv/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..f52a5e6
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Wed Oct 28 15:08:05 IST 2026
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..4102820
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\main\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\debug\res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"/><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"/><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/incremental/mergeDebugAssets/merger.xml b/node_modules/react-native-mmkv/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+new file mode 100644
+index 0000000..67a8034
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/incremental/mergeDebugAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\main\assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="E:\StartUp\Ping\Ping\node_modules\react-native-mmkv\android\src\debug\assets"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/react-native-mmkv/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/react-native-mmkv/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/react-native-mmkv/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/react-native-mmkv/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..4a8ea85
+--- /dev/null
++++ b/node_modules/react-native-mmkv/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++com.margelo.nitro.mmkv
+diff --git a/node_modules/react-native-mmkv/android/fix-prefab.gradle b/node_modules/react-native-mmkv/android/fix-prefab.gradle
+index d6c010e..5150fe9 100644
+--- a/node_modules/react-native-mmkv/android/fix-prefab.gradle
++++ b/node_modules/react-native-mmkv/android/fix-prefab.gradle
+@@ -13,7 +13,6 @@ tasks.configureEach { task ->
+ }
+ 
+ afterEvaluate {
+-  def abis = reactNativeArchitectures()
+   rootProject.allprojects.each { proj ->
+     if (proj === rootProject) return
+ 
+@@ -28,22 +27,19 @@ afterEvaluate {
+       return
+     }
+ 
+-    def variants = proj.android.hasProperty('applicationVariants') ? proj.android.applicationVariants : proj.android.libraryVariants
+     // Touch the prefab_config.json files to ensure that in ExternalNativeJsonGenerator.kt we will re-trigger the prefab CLI to
+     // generate a libnameConfig.cmake file that will contain our native library (.so).
+     // See this condition: https://cs.android.com/android-studio/platform/tools/base/+/mirror-goog-studio-main:build-system/gradle-core/src/main/java/com/android/build/gradle/tasks/ExternalNativeJsonGenerator.kt;l=207-219?q=createPrefabBuildSystemGlue
+-    variants.all { variant ->
+-      def variantName = variant.name
+-      abis.each { abi ->
+-        def searchDir = new File(proj.projectDir, ".cxx/${variantName}")
+-        if (!searchDir.exists()) return
+-        def matches = []
+-        searchDir.eachDir { randomDir ->
+-          def prefabFile = new File(randomDir, "${abi}/prefab_config.json")
+-          if (prefabFile.exists()) matches << prefabFile
+-        }
+-        matches.each { prefabConfig ->
+-          prefabConfig.setLastModified(System.currentTimeMillis())
++    // Enumerate variants/abis from the .cxx directory itself: AGP 9 removed
++    // `libraryVariants`, and `onVariants` cannot be registered this late
++    // (afterEvaluate) — the filesystem tells us exactly what exists.
++    def cxxRoot = new File(proj.projectDir, ".cxx")
++    if (!cxxRoot.exists()) return
++    cxxRoot.eachDir { variantDir ->
++      variantDir.eachDir { abiDir ->
++        def prefabFile = new File(abiDir, "prefab_config.json")
++        if (prefabFile.exists()) {
++          prefabFile.setLastModified(System.currentTimeMillis())
+         }
+       }
+     }

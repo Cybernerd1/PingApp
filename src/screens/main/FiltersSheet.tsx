@@ -30,6 +30,9 @@ export const FiltersSheet: React.FC<{ visible: boolean; onClose: () => void; onS
   const prefsQ = useQuery({
     queryKey: PREFS_KEY,
     queryFn: async () => unwrap(await preferencesApi.getPreferences()),
+    staleTime: 30 * 60_000,
+    // Persisted (doubles as the app 'settings' cache).
+    meta: { persist: true },
     enabled: visible,
   });
   const [draft, setDraft] = useState<DatingPreferences | null>(null);

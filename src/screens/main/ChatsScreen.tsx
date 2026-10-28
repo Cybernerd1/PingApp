@@ -42,7 +42,7 @@ const preview = (m: LastMessage | null, meId: string) => {
 
 /** S12 — new matches row + conversations (GET /matches, GET /chats). */
 export const ChatsScreen: React.FC<{
-  unread: Set<string>;
+  unread: Map<string, number>;
   onOpen: (c: OpenChat) => void;
   onOpenAssistant: () => void;
 }> = ({ unread, onOpen, onOpenAssistant }) => {
@@ -51,10 +51,20 @@ export const ChatsScreen: React.FC<{
     queryKey: ASSISTANT_KEY,
     queryFn: async () => unwrap(await assistantApi.getMessages(100)),
     retry: false,
+    // Assistant history is NOT persisted (opt-in only) — stays in-memory.
   });
-  const assistantLast = assistant.data?.messages[assistant.data.messages.length - 1];
-  const chats = useQuery({ queryKey: CHATS_KEY, queryFn: async () => unwrap(await chatsApi.getChats(50, 0)) });
+  const chats = useQuery({
+    queryKey: CHATS_KEY,
+    queryFn: async () => unwrap(await chatsApi.getChats(50, 0)),
+    staleTime: 30_000,
+    // Persisted: last message, timestamp, unread badge — instant Chats tab.
+    meta: { persist: true },
+  });
+  // Matches are NOT persisted (not on the opt-in list); they refresh on mount
+  // when stale like every other query.
   const matches = useQuery({ queryKey: MATCHES_KEY, queryFn: async () => unwrap(await matchesApi.getMatches()).matches });
+
+  const assistantLast = assistant.data?.messages[assistant.data.messages.length - 1];
 
   const fresh = (matches.data ?? []).filter(m => !m.has_conversation && m.chat_id);
   const list = [...(chats.data ?? [])].sort(
@@ -144,7 +154,8 @@ export const ChatsScreen: React.FC<{
         )
       }
       renderItem={({ item }) => {
-        const isUnread = unread.has(item.chat_id);
+        const unreadCount = unread.get(item.chat_id) ?? 0;
+        const isUnread = unreadCount > 0;
         return (
           <Pressable
             onPress={() => openConv(item)}
@@ -154,16 +165,24 @@ export const ChatsScreen: React.FC<{
           >
             <Avatar uri={item.matched_user_photo_url} name={item.matched_user_name} size={56} />
             <View style={styles.rowBody}>
-              <Text style={styles.name} numberOfLines={1}>
-                {item.matched_user_name}
-              </Text>
-              <Text style={[styles.preview, isUnread && styles.previewUnread]} numberOfLines={1}>
-                {preview(item.last_message, me.user_id)}
-              </Text>
-            </View>
-            <View style={styles.rowRight}>
-              <Text style={styles.time}>{timeAgo(item.last_message?.sent_at ?? item.created_at)}</Text>
-              {isUnread ? <View style={styles.unreadDot} /> : null}
+              <View style={styles.nameTimeRow}>
+                <Text style={[styles.name, isUnread && styles.nameUnread]} numberOfLines={1}>
+                  {item.matched_user_name}
+                </Text>
+                <Text style={[styles.time, isUnread && styles.timeUnread]}>
+                  {timeAgo(item.last_message?.sent_at ?? item.created_at)}
+                </Text>
+              </View>
+              <View style={styles.previewRow}>
+                <Text style={[styles.preview, isUnread && styles.previewUnread]} numberOfLines={1}>
+                  {preview(item.last_message, me.user_id)}
+                </Text>
+                {isUnread ? (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
           </Pressable>
         );
@@ -194,10 +213,25 @@ const styles = StyleSheet.create({
   pin: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: Colors.primarySoft },
   pinText: { fontSize: 10, fontWeight: '800', color: Colors.primaryDeep },
   rowBody: { flex: 1 },
-  name: { ...Typography.bodyStrong, color: Colors.ink },
-  preview: { ...Typography.caption, color: Colors.mute, marginTop: 2 },
+  nameTimeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
+  previewRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  name: { ...Typography.bodyStrong, color: Colors.ink, flexShrink: 1 },
+  nameUnread: { color: Colors.ink },
+  preview: { ...Typography.caption, color: Colors.mute, flex: 1 },
   previewUnread: { color: Colors.ink, fontWeight: '700' },
   rowRight: { alignItems: 'flex-end', gap: 6 },
   time: { ...Typography.caption, color: Colors.faint },
+  timeUnread: { color: Colors.primary, fontWeight: '700' },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    marginLeft: 6,
+  },
+  unreadBadgeText: { color: Colors.white, fontSize: 11, fontWeight: '800' },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
 });

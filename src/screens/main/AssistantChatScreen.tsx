@@ -3,9 +3,6 @@ import {
   ActivityIndicator,
   BackHandler,
   FlatList,
-  Keyboard,
-  LayoutChangeEvent,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,7 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { ArrowLeft, GradientBackground, IconButton, More, Send, Sparkle, useConfirmDialog } from '../../ui';
+import { ArrowLeft, GradientBackground, IconButton, Markdown, More, Send, Sparkle, useConfirmDialog } from '../../ui';
+import { useKeyboardPadding } from '../../ui/useKeyboardPadding';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { assistantApi } from '../../api/assistant';
 import { unwrap } from '../../api/client';
 import { AssistantHistory, AssistantMessage } from '../../api/types';
@@ -51,38 +50,9 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
   const [pending, setPending] = useState<AssistantMessage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { dialog, showDialog } = useConfirmDialog();
-
-  // Lift the composer above the keyboard. If the OS already resized the window
-  // (adjustResize), our container shrinks and no extra padding is needed.
-  const [kbPad, setKbPad] = useState(0);
-  const baseHeight = useRef(0);
-  const kbOpen = useRef(false);
-  const containerHeight = useRef(0);
-  useEffect(() => {
-    const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const s = Keyboard.addListener(showEvt, e => {
-      kbOpen.current = true;
-      const kb = e.endCoordinates.height;
-      if (Platform.OS === 'ios') return setKbPad(kb);
-      setTimeout(() => {
-        const shrunk = baseHeight.current - containerHeight.current;
-        setKbPad(shrunk > kb * 0.5 ? 0 : kb);
-      }, 120);
-    });
-    const h = Keyboard.addListener(hideEvt, () => {
-      kbOpen.current = false;
-      setKbPad(0);
-    });
-    return () => {
-      s.remove();
-      h.remove();
-    };
-  }, []);
-  const onContainerLayout = (e: LayoutChangeEvent) => {
-    containerHeight.current = e.nativeEvent.layout.height;
-    if (!kbOpen.current) baseHeight.current = containerHeight.current;
-  };
+  const { pad, onContainerLayout } = useKeyboardPadding();
+  const insets = useSafeAreaInsets();
+  const composerPadBottom = pad > 0 ? pad + 4 : insets.bottom + 4;
 
   const history = useQuery({
     queryKey: ASSISTANT_KEY,
@@ -155,9 +125,13 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
       <View style={[styles.bubbleRow, mine ? styles.right : styles.left]}>
         {!mine ? <AssistantAvatar size={28} /> : null}
         <View style={[styles.bubble, mine ? styles.mine : styles.theirs, item.pending && styles.pendingBubble]}>
-          <Text style={[styles.text, mine && styles.textMine]} selectable>
-            {item.content}
-          </Text>
+          {mine ? (
+            <Text style={[styles.text, styles.textMine]} selectable>
+              {item.content}
+            </Text>
+          ) : (
+            <Markdown text={item.content} color={Colors.ink} />
+          )}
         </View>
       </View>
     );
@@ -166,7 +140,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
   return (
     <>
     <GradientBackground variant="soft">
-      <SafeAreaView style={styles.flex} edges={['top', kbPad ? 'left' : 'bottom']}>
+      <SafeAreaView style={styles.flex} edges={['top']}>
         <View style={styles.header}>
           <IconButton accessibilityLabel="Back to chats" onPress={onBack} variant="white">
             <ArrowLeft />
@@ -183,7 +157,7 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
           </IconButton>
         </View>
 
-        <View style={[styles.flex, { paddingBottom: kbPad }]} onLayout={onContainerLayout}>
+        <View style={styles.flex} onLayout={onContainerLayout}>
           {history.isLoading ? (
             <ActivityIndicator style={styles.flex} color={Colors.primary} />
           ) : history.isError ? (
@@ -224,23 +198,42 @@ export const AssistantChatScreen: React.FC<{ onBack: () => void }> = ({ onBack }
             />
           )}
 
-          {!messages.length && !history.isLoading ? (
+          {/* Suggestion pills — only shown when the conversation is empty */}
+          {!history.isLoading && messages.length === 0 ? (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chips}
               keyboardShouldPersistTaps="handled"
             >
-              {SUGGESTIONS.map(s => (
-                <Pressable key={s} onPress={() => send(s)} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
-                  <Text style={styles.chipText}>{s}</Text>
-                </Pressable>
-              ))}
+              {SUGGESTIONS.map(s => {
+                const off = sending;
+                return (
+                  <Pressable
+                    key={s}
+                    onPress={() => send(s)}
+                    disabled={off}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Suggestion: ${s}`}
+                    accessibilityState={{ disabled: off }}
+                    style={({ pressed }) => [styles.chip, off && styles.chipOff, pressed && !off && styles.pressed]}
+                  >
+                    <Text style={styles.chipText} numberOfLines={1}>
+                      {s}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </ScrollView>
           ) : null}
 
-          {error ? <Text style={styles.errBar}>{error}</Text> : null}
-          <View style={styles.composer}>
+          {error ? (
+            <View style={styles.errBarWrap}>
+              <Text style={styles.errBar}>{error}</Text>
+            </View>
+          ) : null}
+          {/* 4 px gap between composer and keyboard / home indicator */}
+          <View style={[styles.composer, { paddingBottom: composerPadBottom }]}>
             <TextInput
               style={styles.input}
               value={text}
@@ -284,21 +277,24 @@ const styles = StyleSheet.create({
   pendingBubble: { opacity: 0.6 },
   text: { ...Typography.body, color: Colors.ink },
   textMine: { color: Colors.white },
-  chips: { gap: 8, paddingHorizontal: 12, paddingBottom: 8 },
+  chips: { gap: 8, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 },
   chip: {
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 10,
     borderRadius: Radius.pill,
     backgroundColor: Colors.white,
     borderWidth: 1,
     borderColor: Colors.primarySoft,
+    maxWidth: 220,
   },
-  chipText: { ...Typography.label, color: Colors.primaryDeep },
+  chipOff: { opacity: 0.5 },
+  chipText: { ...Typography.label, color: Colors.primaryDeep, lineHeight: 18 },
   pressed: { opacity: 0.7 },
   err: { ...Typography.body, color: Colors.danger, textAlign: 'center' },
   retry: { ...Typography.label, color: Colors.primary, marginTop: 12 },
-  errBar: { ...Typography.caption, color: Colors.danger, paddingHorizontal: 20, paddingBottom: 6 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingVertical: 8 },
+  errBarWrap: { marginHorizontal: 12, marginBottom: 4, borderRadius: 10, backgroundColor: 'rgba(220,53,69,0.08)', paddingHorizontal: 12, paddingVertical: 6 },
+  errBar: { ...Typography.caption, color: Colors.danger, textAlign: 'center' },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 8 },
   input: {
     flex: 1,
     minHeight: 44,

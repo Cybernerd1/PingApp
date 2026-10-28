@@ -25,6 +25,7 @@ const SHOW_ME: { value: PreferenceGenderType; label: string }[] = [
   { value: 'everyone', label: 'Everyone' },
 ];
 const DISTANCES = [5, 10, 25, 50, 100, 20000]; // 20000 = no limit
+const NO_LIMIT = 20000;
 
 function defaultShowMe(g: GenderType | null): PreferenceGenderType[] {
   if (g === 'female') return ['male'];
@@ -37,7 +38,7 @@ export const PreferencesStep: React.FC<Props> = ({ step, total, ownGender, onBac
   const [showMe, setShowMe] = useState<PreferenceGenderType[]>(defaultShowMe(ownGender));
   const [minAge, setMinAge] = useState(18);
   const [maxAge, setMaxAge] = useState(35);
-  const [distance, setDistance] = useState(25);
+  const [distance, setDistance] = useState(NO_LIMIT);
 
   const toggle = (g: PreferenceGenderType) => {
     if (g === 'everyone') return setShowMe(['everyone']);

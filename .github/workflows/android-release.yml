@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Android APK – Prod
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build Release APK
+    name: Build Prod Release APK
     runs-on: ubuntu-latest
 
     permissions:
@@ -59,7 +59,7 @@ jobs:
             | grep -E "Alias name:|Entry type:"
 
       # ── Build ───────────────────────────────────────────────────────────────
-      - name: Build release APK
+      - name: Build Prod release APK
         env:
           RELEASE_STORE_FILE: ping-release.keystore
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -67,7 +67,7 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
           cd android
-          ./gradlew assembleRelease \
+          ./gradlew assembleProdRelease \
             -PreactNativeArchitectures=arm64-v8a,armeabi-v7a \
             -PRELEASE_STORE_FILE="$RELEASE_STORE_FILE" \
             -PRELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD" \
@@ -77,16 +77,18 @@ jobs:
       # ── Rename APKs ─────────────────────────────────────────────────────────
       - name: Rename APKs
         run: |
-          APK_DIR=android/app/build/outputs/apk/release
+          APK_DIR=android/app/build/outputs/apk/prod/release
 
-          for apk in "$APK_DIR"/app-*-release.apk; do
+          # Multi-ABI split APKs (arm64-v8a, armeabi-v7a)
+          for apk in "$APK_DIR"/app-prod-*-release.apk; do
             [ -f "$apk" ] || continue
-            abi=$(basename "$apk" | sed 's/^app-//;s/-release\.apk$//')
+            abi=$(basename "$apk" | sed 's/^app-prod-//;s/-release\.apk$//')
             mv "$apk" "$APK_DIR/Ping-${abi}.apk"
           done
 
-          if [ -f "$APK_DIR/app-release.apk" ]; then
-            mv "$APK_DIR/app-release.apk" "$APK_DIR/Ping.apk"
+          # Universal / fat APK (no ABI split)
+          if [ -f "$APK_DIR/app-prod-release.apk" ]; then
+            mv "$APK_DIR/app-prod-release.apk" "$APK_DIR/Ping.apk"
           fi
 
       # ── Tag ─────────────────────────────────────────────────────────────────
@@ -104,9 +106,9 @@ jobs:
           body: |
             ## Ping Android Build
 
-            Latest development build of Ping.
+            Production release of Ping.
 
             Commit: `${{ github.sha }}`
           files: |
-            android/app/build/outputs/apk/release/Ping*.apk
+            android/app/build/outputs/apk/prod/release/Ping*.apk
           generate_release_notes: true

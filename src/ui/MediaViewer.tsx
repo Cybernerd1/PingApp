@@ -5,13 +5,11 @@ import {
   Image,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { Colors } from '../theme/colors';
 import { Close } from './icons';
 import { IconButton } from './IconButton';
 

@@ -10,7 +10,7 @@ import { OnboardingWizard } from './src/screens/onboarding/OnboardingWizard';
 import { NotificationToast, ToastConfig } from './src/ui/NotificationToast';
 import {
   requestNotificationPermission,
-  setupFCMBackgroundHandler,
+  // setupFCMBackgroundHandler,
 } from './src/native/fcm';
 import { MainShell } from './src/screens/main/MainShell';
 import { SessionProvider } from './src/session/SessionContext';
@@ -23,8 +23,10 @@ import {
   signOut,
 } from './src/session/session';
 import { tokenStore } from './src/session/tokenStore';
-import { useQueryClient } from '@tanstack/react-query';
+import { purgeCache } from './src/cache/purge';
+import { clearStoredNotifications } from './src/notifications/NotificationsContext';
 import { UserProfile } from './src/api/types';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 
 const FLIRTY_LINES = [
   'Searching dates for you… 💘',
@@ -52,10 +54,9 @@ const FlirtyLoader: React.FC = () => {
 export type AppStep = 'splash' | 'welcome' | 'onboarding' | 'main' | 'offline';
 
 // Register background FCM handler immediately on app boot
-setupFCMBackgroundHandler();
+// setupFCMBackgroundHandler();
 
 function App(): React.JSX.Element {
-  const qc = useQueryClient();
   const [currentStep, setCurrentStep] = useState<AppStep>('splash');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [identity, setIdentity] = useState<GoogleIdentity | null>(null);
@@ -85,16 +86,20 @@ function App(): React.JSX.Element {
     PermissionsAndroid.requestMultiple(list).catch(() => {});
   }, []);
 
-  // Refresh token rejected anywhere → back to Welcome.
+  // Refresh token rejected anywhere (silent 401) → back to Welcome.
+  // Purge BOTH cache layers: in-memory queries and the encrypted disk store,
+  // so a subsequent (different) sign-in can never restore this session's data.
+  // NOTE: keeps the same call as `AppStep === 'offline'` sign-out below via handleLogout.
   useEffect(
     () =>
       tokenStore.onExpired(() => {
-        qc.clear();
+        purgeCache();
+        clearStoredNotifications();
         setProfile(null);
         setCurrentStep('welcome');
         setToast({ title: 'Session expired', message: 'Please sign in again.', icon: '🔒' });
       }),
-    [qc],
+    [],
   );
 
   const applySession = useCallback((state: SessionState, opts?: { welcomeBack?: boolean }) => {
@@ -163,17 +168,29 @@ function App(): React.JSX.Element {
     setCurrentStep('main');
   };
 
+  // ─── This is the single purge point for session-identity changes ──────────
+  // Called on logout AND available as the hook for:
+  // • Account switch — future multi-account sign-in: call after the new tokens
+  //   are stored, before rendering <SessionProvider> for the next user.
+  // • Account deletion — when "Delete account" is re-enabled (MyProfileScreen
+  //   keeps accountApi.deleteProfile/deleteAccount behind a feature flag), call
+  //   purgeCache() right after the API confirms, before returning to Welcome.
+  // purgeCache() clears the in-memory query cache AND the encrypted MMKV cache;
+  // clearStoredNotifications() removes the AsyncStorage inbox so the previous
+  // user's notifications never leak into the next account.
   const handleLogout = useCallback(async () => {
     await signOut();
-    qc.clear();
+    await purgeCache();
+    clearStoredNotifications();
     setProfile(null);
     setIdentity(null);
     setCurrentStep('welcome');
-  }, [qc]);
+  }, []);
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider style={styles.flex}>
+        <KeyboardProvider>
         <StatusBar barStyle="dark-content" />
 
         <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
@@ -217,6 +234,7 @@ function App(): React.JSX.Element {
             <MainShell welcomeToast={mainToast} />
           </SessionProvider>
         )}
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -6,6 +6,7 @@ import { locationApi } from '../../api/location';
 import { GenderType, LocationCoordinates, UserProfile } from '../../api/types';
 import { GoogleIdentity, ONBOARDING_ORDER, OnboardingStep } from '../../session/session';
 import { getCurrentCoords, LocationPermissionDenied, LocationUnavailable } from '../../native/location';
+import { useConfirmDialog } from '../../ui/ConfirmDialog';
 import { GenderStep } from './GenderStep';
 import { BasicsStep, DobParts, dobToIso } from './BasicsStep';
 import { InterestsStep } from './InterestsStep';
@@ -48,9 +49,21 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [interestNames, setInterestNames] = useState<string[]>(profile?.interests ?? []);
+  const { dialog, showDialog } = useConfirmDialog();
 
   const next = () => setIndex(i => Math.min(i + 1, total - 1));
-  const back = () => (index === 0 ? onExit?.() : setIndex(i => i - 1));
+  const back = () => (index === 0 ? confirmExit() : setIndex(i => i - 1));
+
+  // Backing out of the first step signs out — ask before doing it.
+  const confirmExit = () =>
+    showDialog({
+      title: 'Leave Ping?',
+      message: 'You’ll be signed out and can finish setting up your profile next time.',
+      buttons: [
+        { label: 'Stay', variant: 'cancel', onPress: () => {} },
+        { label: 'Leave', variant: 'destructive', onPress: () => onExit?.() },
+      ],
+    });
 
   // Android hardware back walks the wizard instead of closing the app.
   React.useEffect(() => {
@@ -59,9 +72,11 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
         setIndex(i => i - 1);
         return true;
       }
-      return false;
+      confirmExit();
+      return true;
     });
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
   const locate = async () => {
@@ -127,17 +142,10 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
   switch (step) {
     case 'gender':
       return (
-        <GenderStep
-          step={1}
-          total={total}
-          value={gender}
-          onChange={setGender}
-          onNext={next}
-          onSkip={() => {
-            setGender('prefer_not_to_say');
-            next();
-          }}
-        />
+        <>
+          <GenderStep step={1} total={total} value={gender} onChange={setGender} onNext={next} />
+          {dialog}
+        </>
       );
     case 'basics':
       return (

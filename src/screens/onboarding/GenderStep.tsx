@@ -11,7 +11,6 @@ interface Props {
   value: GenderType | null;
   onChange: (g: GenderType) => void;
   onNext: () => void;
-  onSkip: () => void;
   step: number;
   total: number;
 }
@@ -29,20 +28,15 @@ const MORE: { value: GenderType; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
-/** S3 — "Are you a…" with portrait cards and a round "Skip For Now". */
-export const GenderStep: React.FC<Props> = ({ value, onChange, onNext, onSkip, step, total }) => (
+/** S3 — "Are you a…" with portrait cards. Gender selection is mandatory. */
+export const GenderStep: React.FC<Props> = ({ value, onChange, onNext, step, total }) => (
   <StepLayout
     step={step}
     total={total}
     title="Are you a…"
-    subtitle="This helps us show you to the right people. You can change it later."
+    subtitle="Pick one to continue — this helps us show you to the right people. You can change it later."
     onNext={onNext}
     nextDisabled={!value}
-    footerLeft={
-      <Pressable accessibilityRole="button" onPress={onSkip} style={styles.skip}>
-        <Text style={styles.skipText}>Skip For{'\n'}Now</Text>
-      </Pressable>
-    }
   >
     <View style={styles.cards}>
       {MAIN.map(opt => {
@@ -123,14 +117,4 @@ const styles = StyleSheet.create({
   },
   more: { ...Typography.label, color: Colors.mute, marginTop: 24, marginBottom: 10 },
   moreRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
-  skip: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.glassStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadow.soft,
-  },
-  skipText: { ...Typography.caption, fontWeight: '600', color: Colors.ink, textAlign: 'center' },
 });

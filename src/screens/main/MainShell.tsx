@@ -10,19 +10,22 @@ import { onForegroundMessage, getFCMToken, onTokenRefresh, onNotificationOpened 
 import { devicesApi } from '../../api/devices';
 import { chatsApi } from '../../api/chats';
 import { matchesApi } from '../../api/matches';
+import { profileApi } from '../../api/profile';
 import { unwrap } from '../../api/client';
+import { ChatConversation, DiscoverCandidate, MatchItem, UserProfile } from '../../api/types';
 import { NotificationsProvider, useNotifications } from '../../notifications/NotificationsContext';
 import { NotificationsSheet } from './NotificationsSheet';
 import { realtime } from '../../realtime/socket';
 import { useSession } from '../../session/SessionContext';
 import { NotificationToast, ToastConfig } from '../../ui/NotificationToast';
-import { DeckProvider, useDeck } from './DeckContext';
+import { DeckProvider, MatchEvent, useDeck } from './DeckContext';
 import { HomeScreen } from './HomeScreen';
 import { CHATS_KEY, ChatsScreen, MATCHES_KEY, OpenChat } from './ChatsScreen';
 import { ChatThreadScreen } from './ChatThreadScreen';
 import { AssistantChatScreen } from './AssistantChatScreen';
 import { MyProfileScreen } from './profile/MyProfileScreen';
 import { MatchOverlay } from './MatchOverlay';
+import { ProfileSheet } from './ProfileSheet';
 import { MainTab, TabBar } from './TabBar';
 
 /** Authenticated app: tabs + chat thread + realtime wiring. */
@@ -34,6 +37,28 @@ export const MainShell: React.FC<{ welcomeToast?: ToastConfig | null }> = ({ wel
   </DeckProvider>
 );
 
+/** Main photo URL of a profile (order 0 / is_profile_picture). */
+function photoOf(p?: Pick<UserProfile, 'photos'> | null): string | null {
+  const photos = [...(p?.photos ?? [])].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return (photos.find(ph => ph.is_profile_picture) ?? photos[0])?.photo_url ?? null;
+}
+
+/** Turn a fetched profile into a discover candidate for the match overlay. */
+function userToCandidate(p: UserProfile): DiscoverCandidate {
+  return {
+    user_id: p.user_id,
+    full_name: p.full_name,
+    age: p.age ?? null,
+    gender: p.gender ?? null,
+    bio: p.bio ?? null,
+    distance_km: null,
+    interests: p.interests ?? [],
+    photos: (p.photos ?? []).map(ph => ({ photo_id: ph.photo_id, photo_url: ph.photo_url })),
+  };
+}
+
+type UserCard = { name: string | null; photo: string | null };
+
 const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToast }) => {
   const { me } = useSession();
   const qc = useQueryClient();
@@ -41,16 +66,60 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
   const notif = useNotifications();
   const addNotif = notif.add;
   const [tab, setTab] = useState<MainTab>('home');
+  // Keep each tab mounted after its first visit: hidden (display:none) instead
+  // of unmounted, so switching tabs never re-mounts screens or re-triggers
+  // their queries. Panes render inside a flex:1 container; hidden panes use
+  // display:'none' so only the active one occupies layout.
+  const [visited, setVisited] = useState<Record<MainTab, boolean>>({ home: true, chats: false, profile: false });
+  const selectTab = useCallback((t: MainTab) => {
+    setVisited(prev => (prev[t] ? prev : { ...prev, [t]: true }));
+    setTab(t);
+  }, []);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [openChat, setOpenChat] = useState<OpenChat | null>(null);
-  const [unread, setUnread] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<ToastConfig | null>(welcomeToast);
+  const [unread, setUnread] = useState<Map<string, number>>(new Map());
+  // Only show the onboarding-complete toast, NOT the welcome-back login toast.
+  const [toast, setToast] = useState<ToastConfig | null>(
+    welcomeToast && !welcomeToast.message?.includes('meet some amazing people') ? welcomeToast : null,
+  );
+  const [profileUserId, setProfileUserId] = useState<string | null>(null);
+  const [remoteMatch, setRemoteMatch] = useState<MatchEvent | null>(null);
   const openChatRef = useRef<OpenChat | null>(null);
   openChatRef.current = openChat;
+  const remoteMatchRef = useRef<MatchEvent | null>(null);
+  /** Sender name/avatar cache so toasts can show who's pinging. */
+  const userCards = useRef(new Map<string, UserCard>());
+
+  const describeUser = useCallback(
+    async (userId: string): Promise<UserCard> => {
+      const cached = userCards.current.get(userId);
+      if (cached) return cached;
+      // The chats list usually already has this user's name + photo.
+      const chats = qc.getQueryData<ChatConversation[]>(CHATS_KEY);
+      const c = chats?.find(x => x.matched_user_id === userId);
+      if (c) {
+        const card: UserCard = { name: c.matched_user_name, photo: c.matched_user_photo_url ?? null };
+        userCards.current.set(userId, card);
+        return card;
+      }
+      try {
+        const res = await profileApi.getUserProfileById(userId);
+        if (res.status === 'success') {
+          const card: UserCard = { name: res.data.full_name, photo: photoOf(res.data) };
+          userCards.current.set(userId, card);
+          return card;
+        }
+      } catch {
+        // fall through to anonymous
+      }
+      return { name: null, photo: null };
+    },
+    [qc],
+  );
 
   const open = useCallback((c: OpenChat) => {
     setUnread(prev => {
-      const n = new Set(prev);
+      const n = new Map(prev);
       n.delete(c.chatId);
       return n;
     });
@@ -99,6 +168,62 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
     [qc, open],
   );
 
+  /**
+   * Open a conversation from a MatchItem (from Matches screen / ProfileSheet chat button).
+   * Looks up the chat_id from the cached chats list or the match itself.
+   */
+  const openChatByMatch = useCallback(
+    async (match: MatchItem) => {
+      setTab('chats');
+      // Try the local chats cache first (instant — avoids a network round-trip)
+      const chats = qc.getQueryData<ChatConversation[]>(CHATS_KEY);
+      const cached = chats?.find(x => x.matched_user_id === match.matched_user.user_id);
+      const resolvedChatId = cached?.chat_id ?? match.chat_id;
+      if (resolvedChatId) {
+        open({
+          chatId: resolvedChatId,
+          matchId: match.match_id,
+          userId: match.matched_user.user_id,
+          name: match.matched_user.full_name,
+          photo: match.matched_user.profile_picture?.photo_url ?? null,
+        });
+      } else {
+        // No chat started yet — fall back to id-based lookup which handles this case
+        openChatById(resolvedChatId ?? undefined);
+      }
+    },
+    [qc, open, openChatById],
+  );
+
+  /** Open the profile of whoever is on the other side of a chat/match id. */
+  const openProfileByChatId = useCallback(
+    async (chatId?: string | null) => {
+      if (!chatId) return;
+      try {
+        const chats = await qc.fetchQuery({
+          queryKey: CHATS_KEY,
+          queryFn: async () => unwrap(await chatsApi.getChats(50, 0)),
+          staleTime: 0,
+        });
+        const c = chats.find(x => x.chat_id === chatId);
+        if (c) {
+          setProfileUserId(c.matched_user_id);
+          return;
+        }
+        const ms = await qc.fetchQuery({
+          queryKey: MATCHES_KEY,
+          queryFn: async () => unwrap(await matchesApi.getMatches()).matches,
+          staleTime: 0,
+        });
+        const m = ms.find(x => x.chat_id === chatId);
+        if (m) setProfileUserId(m.matched_user.user_id);
+      } catch {
+        // nothing to open
+      }
+    },
+    [qc],
+  );
+
   // Realtime: connect once, surface new messages / matches anywhere in the app.
   useEffect(() => {
     realtime.connect();
@@ -106,40 +231,77 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
       qc.invalidateQueries({ queryKey: CHATS_KEY });
       qc.invalidateQueries({ queryKey: MATCHES_KEY });
       if (message.sender_id === me.user_id || openChatRef.current?.chatId === message.chat_id) return;
-      setUnread(prev => new Set(prev).add(message.chat_id));
-      addNotif({
-        title: 'New message',
-        body: message.message_type === 'image' ? '📷 Sent you a photo' : message.content,
-        icon: '💬',
-        chatId: message.chat_id,
+      setUnread(prev => {
+        const n = new Map(prev);
+        n.set(message.chat_id, (n.get(message.chat_id) ?? 0) + 1);
+        return n;
       });
-      setToast({
-        title: 'New message',
-        message: message.message_type === 'image' ? '📷 Sent you a photo' : message.content,
-        icon: '💬',
-        onPress: () => openChatById(message.chat_id),
+      const body = message.message_type === 'image' ? '📷 Sent you a photo' : message.content;
+      // Surface who sent it — name + photo — in both the inbox and the toast.
+      describeUser(message.sender_id).then(({ name, photo }) => {
+        addNotif({
+          title: name ? `${name} sent a message` : 'New message',
+          body,
+          icon: '💬',
+          chatId: message.chat_id,
+          userId: message.sender_id,
+          kind: 'message',
+          avatarUrl: photo ?? undefined,
+        });
+        setToast({
+          title: name ?? 'New message',
+          message: body,
+          icon: '💬',
+          avatarUrl: photo ?? undefined,
+          onPress: () => openChatById(message.chat_id),
+        });
       });
     });
     const offMatch = realtime.on('match_created', evt => {
       qc.invalidateQueries({ queryKey: MATCHES_KEY });
       qc.invalidateQueries({ queryKey: CHATS_KEY });
-      // The person who liked second sees the overlay from the swipe response;
-      // the other person gets this toast.
-      addNotif({ title: 'New match 💜', body: 'You’ve got a new match. Say hi first!', icon: '✨', chatId: evt.chat?.id });
-      if (!deck.lastMatch) {
-        setToast({
-          title: 'You’ve got a new match! 💜',
-          message: 'Say hi first?',
+      describeUser(evt.matched_user_id).then(({ name, photo }) => {
+        addNotif({
+          title: 'New match 💜',
+          body: 'You’ve got a new match. Say hi first!',
           icon: '✨',
-          onPress: () => openChatById(evt.chat?.id),
+          chatId: evt.chat?.id,
+          userId: evt.matched_user_id,
+          kind: 'match',
+          avatarUrl: photo ?? undefined,
         });
-      }
+        // The person who liked second sees the overlay from the swipe response;
+        // the other person gets the same match screen here. If an overlay is
+        // already up, fall back to a toast that opens the new match's profile.
+        if (!deck.lastMatch && !remoteMatchRef.current) {
+          profileApi
+            .getUserProfileById(evt.matched_user_id)
+            .then(res => {
+              if (res.status !== 'success') return;
+              remoteMatchRef.current = {
+                candidate: userToCandidate(res.data),
+                chatId: evt.chat?.id ?? null,
+                matchId: evt.match?.id ?? null,
+              };
+              setRemoteMatch(remoteMatchRef.current);
+            })
+            .catch(() => {});
+        } else {
+          setToast({
+            title: `You matched with ${name?.split(' ')[0] ?? 'someone'}! 💜`,
+            message: 'Tap to view their profile',
+            icon: '✨',
+            avatarUrl: photo ?? undefined,
+            onPress: () => setProfileUserId(evt.matched_user_id),
+          });
+        }
+      });
     });
     return () => {
       offMsg();
       offMatch();
     };
-  }, [qc, me.user_id, deck.lastMatch, addNotif, openChatById]);
+  }, [qc, me.user_id, deck.lastMatch, addNotif, openChatById, describeUser]);
 
   // Register this device for push (background / closed-app notifications).
   // getFCMToken() returns null until the native Firebase module is built in.
@@ -151,10 +313,19 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
     return onTokenRefresh(reg);
   }, [me.user_id]);
 
-  // Tapping a push (app in background, or launched from it) opens that chat.
-  useEffect(() => onNotificationOpened(data => openChatById(data?.chat_id as string | undefined)), [openChatById]);
+  // Tapping a push (app in background, or launched from it) — match/like pushes
+  // open the sender's profile, message pushes open the chat.
+  useEffect(
+    () =>
+      onNotificationOpened(data => {
+        if (data?.type === 'match' || data?.type === 'like') openProfileByChatId(data?.chat_id as string | undefined);
+        else openChatById(data?.chat_id as string | undefined);
+      }),
+    [openChatById, openProfileByChatId],
+  );
 
-  // Pushes received while the app is open → inbox
+  // Pushes received while the app is open → inbox (the socket events already
+  // fire the live toast/overlay; this only records the notification).
   useEffect(
     () =>
       onForegroundMessage(p => {
@@ -165,6 +336,7 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
           icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
           chatId: p.data?.chat_id,
           avatarUrl: p.data?.avatar_url,
+          kind: type === 'match' ? 'match' : type === 'like' ? 'like' : 'message',
         });
       }),
     [addNotif],
@@ -198,28 +370,49 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
 
   return (
     <GradientBackground>
-      <SafeAreaView style={styles.flex} edges={['top']}>
-        <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         <View style={styles.flex}>
-          {tab === 'home' && <HomeScreen />}
-          {tab === 'chats' && <ChatsScreen unread={unread} onOpen={open} onOpenAssistant={() => setAssistantOpen(true)} />}
-          {tab === 'profile' && <MyProfileScreen />}
+          {visited.home && (
+            <View style={tab === 'home' ? styles.pane : styles.paneHidden}>
+              <HomeScreen />
+            </View>
+          )}
+          {visited.chats && (
+            <View style={tab === 'chats' ? styles.pane : styles.paneHidden}>
+              <ChatsScreen unread={unread} onOpen={open} onOpenAssistant={() => setAssistantOpen(true)} />
+            </View>
+          )}
+          {visited.profile && (
+            <View style={tab === 'profile' ? styles.pane : styles.paneHidden}>
+              <MyProfileScreen onOpenChat={openChatByMatch} />
+            </View>
+          )}
         </View>
-        <TabBar active={tab} onSelect={setTab} unreadChats={unread.size} />
+        <TabBar active={tab} onSelect={selectTab} unreadChats={Array.from(unread.values()).reduce((a, b) => a + b, 0)} />
       </SafeAreaView>
+
+      {/* Toast is rendered outside SafeAreaView so it can slide in from the very top */}
+      <NotificationToast toast={toast} onDismiss={() => setToast(null)} />
 
       <NotificationsSheet
         visible={notif.sheetOpen}
         onClose={() => notif.setSheetOpen(false)}
         onOpenChats={() => setTab('chats')}
         onOpenChat={chatId => openChatById(chatId)}
+        onOpenProfile={userId => setProfileUserId(userId)}
       />
 
       <MatchOverlay
-        match={deck.lastMatch}
-        onClose={deck.clearMatch}
+        match={deck.lastMatch ?? remoteMatch}
+        onClose={() => {
+          deck.clearMatch();
+          remoteMatchRef.current = null;
+          setRemoteMatch(null);
+        }}
         onMessage={m => {
           deck.clearMatch();
+          remoteMatchRef.current = null;
+          setRemoteMatch(null);
           if (m.chatId) {
             open({
               chatId: m.chatId,
@@ -228,8 +421,18 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
               name: m.candidate.full_name,
               photo: m.candidate.photos[0]?.photo_url ?? null,
             });
+          } else {
+            setProfileUserId(m.candidate.user_id);
           }
         }}
+      />
+
+      {/* Other user's profile — opened from match/like notifications. */}
+      <ProfileSheet
+        visible={!!profileUserId}
+        userId={profileUserId}
+        onClose={() => setProfileUserId(null)}
+        onOpenChat={match => openChatByMatch(match)}
       />
     </GradientBackground>
   );
@@ -237,5 +440,7 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  pane: { flex: 1 },
+  paneHidden: { display: 'none' },
   title: { ...Typography.title, color: Colors.ink, marginTop: 12, paddingHorizontal: 20 },
 });
