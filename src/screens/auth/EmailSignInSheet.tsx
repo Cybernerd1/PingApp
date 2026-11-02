@@ -13,7 +13,7 @@ interface Props {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Email + password sign-in — used by the shared demo/test account. */
+/** Email + password sign-in for accounts with a password. */
 export const EmailSignInSheet: React.FC<Props> = ({ visible, onClose, onSignedIn }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -107,7 +107,7 @@ export const EmailSignInSheet: React.FC<Props> = ({ visible, onClose, onSignedIn
           </Pressable>
         }
       />
-      <Text style={styles.note}>Email sign-in is for test accounts. Everyone else can continue with Google.</Text>
+      <Text style={styles.note}>Use the password you created during onboarding or in Settings.</Text>
     </Sheet>
   );
 };

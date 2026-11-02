@@ -4,6 +4,7 @@ export * from './GlassCard';
 export * from './Chip';
 export * from './StepHeader';
 export * from './FieldRow';
+export * from './PasswordInput';
 export * from './Stepper';
 export * from './icons';
 export * from './Avatar';

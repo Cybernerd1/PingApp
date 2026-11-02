@@ -7,6 +7,9 @@ import {
   GoogleAuthRequest,
   AppleAuthRequest,
   PasswordLoginRequest,
+  SetPasswordRequest,
+  ChangePasswordRequest,
+  PasswordMutationData,
 } from './types';
 
 export const authApi = {
@@ -72,6 +75,22 @@ export const authApi = {
     return apiRequest<AuthTokenData>({
       method: 'POST',
       url: '/auth/login/password',
+      data: payload,
+    });
+  },
+
+  setPassword: async (payload: SetPasswordRequest): Promise<ApiResponse<PasswordMutationData>> => {
+    return apiRequest<PasswordMutationData>({
+      method: 'POST',
+      url: '/auth/password',
+      data: payload,
+    });
+  },
+
+  changePassword: async (payload: ChangePasswordRequest): Promise<ApiResponse<PasswordMutationData>> => {
+    return apiRequest<PasswordMutationData>({
+      method: 'PUT',
+      url: '/auth/password',
       data: payload,
     });
   },

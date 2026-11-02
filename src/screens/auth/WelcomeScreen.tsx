@@ -17,7 +17,7 @@ const { width: W } = Dimensions.get('window');
 
 /**
  * S2 — "Love is One Swipe Away".
- * Google sign-in for everyone; email + password for the demo/test account.
+ * Google sign-in for everyone; email + password for accounts with a password.
  */
 export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ onSignedIn }) => {
   const [loading, setLoading] = useState(false);

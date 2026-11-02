@@ -8,22 +8,19 @@
  * - Auth tokens are NOT stored here — they already live in the Keychain via
  *   ./src/session/authStorage.ts. Never add them to this store.
  */
+import type { MMKV as MMKVInstance } from 'react-native-mmkv';
+
 let Keychain: any = null;
-let createMMKV: any = null;
-let MMKV: any = null;
+let createMMKV: ((options: { id: string; encryptionKey: string }) => MMKVInstance) | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   Keychain = require('react-native-keychain');
 } catch { Keychain = null; }
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const m = require('react-native-mmkv');
   createMMKV = m.createMMKV;
-  MMKV = m.MMKV;
-} catch { createMMKV = null; MMKV = null; }
+} catch { createMMKV = null; }
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   require('react-native-get-random-values');
 } catch {
   // Native module unavailable — crypto.getRandomValues may be missing; storage will degrade.
@@ -33,7 +30,9 @@ const KEYCHAIN_SERVICE = 'ping.mmkv';
 /** MMKV instance id. `createMMKV` must never be called twice for one instance. */
 const MMKV_ID = 'ping-cache';
 
-let instance: any = null;
+/** The app's one and only MMKV instance. It is assigned exactly once at boot. */
+export let storage: MMKVInstance | null = null;
+let initialization: Promise<void> | null = null;
 
 /* eslint-disable no-bitwise -- base64 encoding of the random key needs bit ops */
 /** Minimal base64 for raw bytes (Hermes has no Buffer/btoa). */
@@ -80,24 +79,27 @@ async function getEncryptionKey(): Promise<string> {
  * Resolves without throwing even if Keychain/MMKV fails — the app then runs with
  * an in-memory-only query client instead of crashing.
  */
-export async function initStorage(): Promise<void> {
-  if (instance) return;
-  try {
-    if (!createMMKV) throw new Error('MMKV unavailable');
-    const key = await getEncryptionKey();
-    // MMKV v4 API (createMMKV). The default AES-128 is exactly what a 16-byte
-    // key targets; pass no `path` so MMKV writes into its default app dir.
-    instance = createMMKV({ id: MMKV_ID, encryptionKey: key });
-  } catch (e) {
-    console.warn('[cache] MMKV unavailable — running without persistence:', e);
-  }
+export function initStorage(): Promise<void> {
+  if (initialization) return initialization;
+  initialization = (async () => {
+    try {
+      if (!createMMKV) throw new Error('MMKV unavailable');
+      const key = await getEncryptionKey();
+      // MMKV v4 API (createMMKV). The default AES-128 is exactly what a 16-byte
+      // key targets; pass no `path` so MMKV writes into its default app dir.
+      storage = createMMKV({ id: MMKV_ID, encryptionKey: key });
+    } catch (e) {
+      console.warn('[cache] MMKV unavailable — running without persistence:', e);
+    }
+  })();
+  return initialization;
 }
 
 /**
  * The initialized store. Throws if initStorage() hasn't resolved yet — the boot
  * gate guarantees this never happens on a real app start.
  */
-export function getStorage(): any {
-  if (!instance) throw new Error('[cache] MMKV accessed before initStorage() resolved');
-  return instance;
+export function getStorage(): MMKVInstance {
+  if (!storage) throw new Error('[cache] MMKV accessed before initStorage() resolved');
+  return storage;
 }

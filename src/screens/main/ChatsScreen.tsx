@@ -1,9 +1,9 @@
-import React from 'react';
-import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
-import { Avatar, EmptyState } from '../../ui';
+import { Avatar, Close, EmptyState, IconButton, Search } from '../../ui';
 import { chatsApi } from '../../api/chats';
 import { matchesApi } from '../../api/matches';
 import { unwrap } from '../../api/client';
@@ -11,6 +11,7 @@ import { ChatConversation, LastMessage } from '../../api/types';
 import { useSession } from '../../session/SessionContext';
 import { assistantApi } from '../../api/assistant';
 import { ASSISTANT_KEY, AssistantAvatar } from './AssistantChatScreen';
+import { CONVERSATIONS_KEY } from '../../cache/queryClient';
 
 export interface OpenChat {
   chatId: string;
@@ -20,7 +21,7 @@ export interface OpenChat {
   photo: string | null;
 }
 
-export const CHATS_KEY = ['chats'];
+export const CHATS_KEY = CONVERSATIONS_KEY;
 export const MATCHES_KEY = ['matches'];
 
 export function timeAgo(iso?: string | null) {
@@ -47,6 +48,8 @@ export const ChatsScreen: React.FC<{
   onOpenAssistant: () => void;
 }> = ({ unread, onOpen, onOpenAssistant }) => {
   const { me } = useSession();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const assistant = useQuery({
     queryKey: ASSISTANT_KEY,
     queryFn: async () => unwrap(await assistantApi.getMessages(100)),
@@ -70,6 +73,15 @@ export const ChatsScreen: React.FC<{
   const list = [...(chats.data ?? [])].sort(
     (a, b) => new Date(b.last_message?.sent_at ?? b.updated_at).getTime() - new Date(a.last_message?.sent_at ?? a.updated_at).getTime(),
   );
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredList = useMemo(
+    () => normalizedSearch ? list.filter(c => c.matched_user_name.toLocaleLowerCase().includes(normalizedSearch)) : list,
+    [list, normalizedSearch],
+  );
+  const filteredFresh = useMemo(
+    () => normalizedSearch ? fresh.filter(m => m.matched_user.full_name.toLocaleLowerCase().includes(normalizedSearch)) : fresh,
+    [fresh, normalizedSearch],
+  );
   const refreshing = chats.isRefetching || matches.isRefetching;
   const refresh = () => {
     chats.refetch();
@@ -82,15 +94,50 @@ export const ChatsScreen: React.FC<{
 
   return (
     <FlatList
-      data={list}
+      data={filteredList}
       keyExtractor={c => c.chat_id}
       contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} />}
       ListHeaderComponent={
         <View>
-          <Text style={styles.title} accessibilityRole="header">
-            Chats
-          </Text>
+          <View style={styles.titleRow}>
+            {searchOpen ? (
+              <View style={styles.searchBox}>
+                <Search size={18} color={Colors.mute} />
+                <TextInput
+                  autoFocus
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Search chats by name"
+                  placeholderTextColor={Colors.faint}
+                  style={styles.searchInput}
+                  autoCorrect={false}
+                  returnKeyType="done"
+                  accessibilityLabel="Search chats by profile name"
+                />
+                <Pressable
+                  onPress={() => { setSearch(''); setSearchOpen(false); }}
+                  hitSlop={8}
+                  accessibilityLabel="Close chat search"
+                >
+                  <Close size={16} color={Colors.mute} />
+                </Pressable>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.title} accessibilityRole="header">Chats</Text>
+                <IconButton
+                  accessibilityLabel="Search chats by profile name"
+                  onPress={() => setSearchOpen(true)}
+                  variant="white"
+                  size={40}
+                >
+                  <Search size={19} />
+                </IconButton>
+              </>
+            )}
+          </View>
           <Pressable
             onPress={onOpenAssistant}
             style={({ pressed }) => [styles.row, styles.assistantRow, pressed && styles.pressed]}
@@ -113,11 +160,11 @@ export const ChatsScreen: React.FC<{
             </View>
             {assistantLast ? <Text style={styles.time}>{timeAgo(assistantLast.created_at)}</Text> : null}
           </Pressable>
-          {fresh.length ? (
+          {filteredFresh.length ? (
             <>
               <Text style={styles.section}>New matches</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.freshRow}>
-                {fresh.map(m => (
+              <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={styles.freshRow}>
+                {filteredFresh.map(m => (
                   <Pressable
                     key={m.match_id}
                     style={styles.freshItem}
@@ -141,7 +188,7 @@ export const ChatsScreen: React.FC<{
               </ScrollView>
             </>
           ) : null}
-          {list.length ? <Text style={styles.section}>Messages</Text> : null}
+          {filteredList.length ? <Text style={styles.section}>Messages</Text> : null}
         </View>
       }
       ListEmptyComponent={
@@ -149,7 +196,9 @@ export const ChatsScreen: React.FC<{
           <EmptyState loading title="Loading chats…" />
         ) : chats.isError ? (
           <EmptyState emoji="📡" title="Couldn’t load chats" message={(chats.error as Error).message} actionLabel="Try again" onAction={refresh} />
-        ) : fresh.length ? undefined : (
+        ) : filteredFresh.length ? undefined : normalizedSearch ? (
+          <EmptyState emoji="🔎" title="No matching chats" message="Try another profile name." />
+        ) : (
           <EmptyState emoji="💬" title="No chats yet" message="When you and someone like each other, you can chat here." />
         )
       }
@@ -193,7 +242,10 @@ export const ChatsScreen: React.FC<{
 
 const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingBottom: 24, flexGrow: 1 },
-  title: { ...Typography.title, color: Colors.ink, marginTop: 12, marginBottom: 8 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 8 },
+  title: { ...Typography.title, color: Colors.ink },
+  searchBox: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, borderRadius: 18, backgroundColor: Colors.white },
+  searchInput: { flex: 1, ...Typography.body, color: Colors.ink, paddingVertical: 8 },
   section: { ...Typography.label, color: Colors.mute, marginTop: 14, marginBottom: 10 },
   freshRow: { gap: 14, paddingBottom: 6 },
   freshItem: { alignItems: 'center', width: 72 },

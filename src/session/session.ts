@@ -19,10 +19,13 @@ import { UserProfile } from '../api/types';
 import { tokenStore } from './tokenStore';
 import { devicesApi } from '../api/devices';
 import { getFCMToken } from '../native/fcm';
+import { ApiError, unwrap } from '../api/client';
+import { queryClient, ME_KEY, SETTINGS_KEY } from '../cache/queryClient';
+import { purgeCache } from '../cache/purge';
 
-export type OnboardingStep = 'gender' | 'basics' | 'interests' | 'photos' | 'preferences';
+export type OnboardingStep = 'gender' | 'basics' | 'interests' | 'photos' | 'preferences' | 'create_password';
 
-export const ONBOARDING_ORDER: OnboardingStep[] = ['gender', 'basics', 'interests', 'photos', 'preferences'];
+export const ONBOARDING_ORDER: OnboardingStep[] = ['gender', 'basics', 'interests', 'photos', 'preferences', 'create_password'];
 
 export interface GoogleIdentity {
   email?: string | null;
@@ -39,6 +42,23 @@ export type SessionState =
 
 let identity: GoogleIdentity | null = null;
 let configured = false;
+const SESSION_PROFILE_TIMEOUT = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Session bootstrap timed out')), timeoutMs);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 function configureGoogle() {
   if (configured) return;
@@ -87,6 +107,8 @@ export async function signInWithGoogle(): Promise<SessionState> {
     throw new Error(res.message);
   }
 
+  // Clear any previous account before the new token becomes active.
+  await purgeCache();
   await tokenStore.set(res.data.access_token, res.data.refresh_token);
   return resolveSession();
 }
@@ -104,6 +126,8 @@ export async function signInWithPassword(email: string, password: string): Promi
     throw new Error(res.message);
   }
   identity = { email: email.trim().toLowerCase(), name: null, photo: null };
+  // This also covers switching accounts without explicitly logging out first.
+  await purgeCache();
   await tokenStore.set(res.data.access_token, res.data.refresh_token);
   return resolveSession();
 }
@@ -124,19 +148,44 @@ export async function resolveSession(): Promise<SessionState> {
     }
   }
 
-  const profileRes = await profileApi.getOwnProfile();
-  if (profileRes.status === 'error') {
-    if (profileRes.code === 'UNAUTHORIZED') {
-      await tokenStore.clear();
-      return { status: 'signedOut' };
+  let profile: UserProfile;
+  const cachedProfile = queryClient.getQueryData<UserProfile>(ME_KEY);
+  if (cachedProfile) {
+    // Session bootstrap is cache-first so a cold/offline launch does not wait
+    // for a timeout before rendering the already-known main screen.
+    profile = cachedProfile;
+    queryClient
+      .prefetchQuery({
+        queryKey: ME_KEY,
+        queryFn: async () => unwrap(await profileApi.getOwnProfile()),
+        staleTime: 30 * 60_000,
+        meta: { persist: true },
+      })
+      .catch(() => undefined);
+  } else {
+    try {
+      profile = await withTimeout(
+        queryClient.fetchQuery({
+          queryKey: ME_KEY,
+          queryFn: async () => unwrap(await profileApi.getOwnProfile()),
+          staleTime: 30 * 60_000,
+          meta: { persist: true },
+        }),
+        SESSION_PROFILE_TIMEOUT,
+      );
+    } catch (error) {
+      const apiError = error instanceof ApiError ? error : null;
+      if (apiError?.code === 'UNAUTHORIZED') {
+        await tokenStore.clear();
+        return { status: 'signedOut' };
+      }
+      if (apiError?.code === 'NOT_FOUND') {
+        return { status: 'onboarding', step: 'gender', profile: null, identity };
+      }
+      return { status: 'offline', message: apiError?.message ?? 'Couldn’t reach Ping.' };
     }
-    if (profileRes.code === 'NOT_FOUND') {
-      return { status: 'onboarding', step: 'gender', profile: null, identity };
-    }
-    return { status: 'offline', message: profileRes.message };
   }
 
-  const profile = profileRes.data;
   const step = await deriveStep(profile);
   if (step) return { status: 'onboarding', step, profile, identity };
   return { status: 'ready', profile, identity };
@@ -147,8 +196,20 @@ async function deriveStep(p: UserProfile): Promise<OnboardingStep | null> {
   if (!p.birthdate || !p.full_name) return 'basics';
   if ((p.interests?.length ?? 0) < 3) return 'interests';
   if ((p.photos?.length ?? 0) < 1) return 'photos';
-  const prefs = await preferencesApi.getPreferences();
-  if (prefs.status === 'error' && prefs.code === 'NOT_FOUND') return 'preferences';
+  if (!queryClient.getQueryData(SETTINGS_KEY)) {
+    try {
+      await queryClient.fetchQuery({
+        queryKey: SETTINGS_KEY,
+        queryFn: async () => unwrap(await preferencesApi.getPreferences()),
+        staleTime: 30 * 60_000,
+        meta: { persist: true },
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'NOT_FOUND') return 'preferences';
+      return null;
+    }
+  }
+  if (!p.hasPassword) return 'create_password';
   return null;
 }
 

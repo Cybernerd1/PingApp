@@ -7,11 +7,13 @@ import { GenderType, LocationCoordinates, UserProfile } from '../../api/types';
 import { GoogleIdentity, ONBOARDING_ORDER, OnboardingStep } from '../../session/session';
 import { getCurrentCoords, LocationPermissionDenied, LocationUnavailable } from '../../native/location';
 import { useConfirmDialog } from '../../ui/ConfirmDialog';
+import { ME_KEY, SETTINGS_KEY } from '../../cache/queryClient';
 import { GenderStep } from './GenderStep';
 import { BasicsStep, DobParts, dobToIso } from './BasicsStep';
 import { InterestsStep } from './InterestsStep';
 import { PhotosStep } from './PhotosStep';
 import { PreferencesStep } from './PreferencesStep';
+import { CreatePasswordStep } from './CreatePasswordStep';
 
 interface Props {
   initialStep: OnboardingStep;
@@ -127,15 +129,15 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
       if (loc.status === 'error') setLocationError(loc.message);
     }
 
-    qc.invalidateQueries({ queryKey: ['userProfile'] });
+    qc.invalidateQueries({ queryKey: ME_KEY });
     setSaving(false);
     next();
   };
 
   const finish = async () => {
     const res = await profileApi.getOwnProfile();
-    qc.invalidateQueries({ queryKey: ['userProfile'] });
-    qc.invalidateQueries({ queryKey: ['userPreferences'] });
+    qc.invalidateQueries({ queryKey: ME_KEY });
+    qc.invalidateQueries({ queryKey: SETTINGS_KEY });
     onComplete(res.status === 'success' ? res.data : profile);
   };
 
@@ -186,6 +188,9 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
       return <PhotosStep step={4} total={total} onBack={back} onDone={next} />;
     case 'preferences':
     default:
-      return <PreferencesStep step={5} total={total} ownGender={gender} onBack={back} onDone={finish} />;
+       if (step === 'preferences') {
+         return <PreferencesStep step={5} total={total} ownGender={gender} onBack={back} onDone={next} />;
+       }
+       return <CreatePasswordStep step={6} total={total} onBack={back} onDone={finish} />;
   }
 };

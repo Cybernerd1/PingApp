@@ -31,7 +31,7 @@ export const DiscoverHeader: React.FC<Props> = ({ title, subtitle }) => {
       const res = await locationApi.startLocationSharing(coords);
       if (res.status === 'success') {
         setLocLabel('Location updated');
-        deck.reset();
+        deck.updateLocation(coords);
       } else setLocLabel('Couldn’t update');
     } catch (e) {
       setLocLabel(

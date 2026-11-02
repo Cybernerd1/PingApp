@@ -224,6 +224,10 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
     [qc],
   );
 
+  const openProfileByUserId = useCallback((userId?: string | null) => {
+    if (userId) setProfileUserId(userId);
+  }, []);
+
   // Realtime: connect once, surface new messages / matches anywhere in the app.
   useEffect(() => {
     realtime.connect();
@@ -318,10 +322,15 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
   useEffect(
     () =>
       onNotificationOpened(data => {
-        if (data?.type === 'match' || data?.type === 'like') openProfileByChatId(data?.chat_id as string | undefined);
+        const type = String(data?.type ?? '');
+        const userId = (data?.user_id ?? data?.userId ?? data?.sender_id ?? data?.matched_user_id ?? data?.from_user_id) as string | undefined;
+        if (type === 'match' || type === 'like') {
+          if (userId) openProfileByUserId(userId);
+          else openProfileByChatId(data?.chat_id as string | undefined);
+        }
         else openChatById(data?.chat_id as string | undefined);
       }),
-    [openChatById, openProfileByChatId],
+    [openChatById, openProfileByChatId, openProfileByUserId],
   );
 
   // Pushes received while the app is open → inbox (the socket events already
@@ -335,6 +344,7 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
           body: p.body,
           icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
           chatId: p.data?.chat_id,
+          userId: p.data?.user_id ?? p.data?.userId ?? p.data?.sender_id ?? p.data?.matched_user_id ?? p.data?.from_user_id,
           avatarUrl: p.data?.avatar_url,
           kind: type === 'match' ? 'match' : type === 'like' ? 'like' : 'message',
         });
@@ -361,9 +371,6 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
     return () => sub.remove();
   }, []);
 
-  if (openChat) {
-    return <ChatThreadScreen chat={openChat} onBack={() => setOpenChat(null)} />;
-  }
   if (assistantOpen) {
     return <AssistantChatScreen onBack={() => setAssistantOpen(false)} />;
   }
@@ -401,6 +408,14 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
         onOpenChat={chatId => openChatById(chatId)}
         onOpenProfile={userId => setProfileUserId(userId)}
       />
+
+      {/* Keep the ChatsScreen mounted under this overlay so its list and scroll
+          position survive opening and closing an individual conversation. */}
+      {openChat ? (
+        <View style={styles.threadOverlay}>
+          <ChatThreadScreen chat={openChat} onBack={() => setOpenChat(null)} />
+        </View>
+      ) : null}
 
       <MatchOverlay
         match={deck.lastMatch ?? remoteMatch}
@@ -442,5 +457,6 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   pane: { flex: 1 },
   paneHidden: { display: 'none' },
+  threadOverlay: { ...StyleSheet.absoluteFill, zIndex: 10, elevation: 10 },
   title: { ...Typography.title, color: Colors.ink, marginTop: 12, paddingHorizontal: 20 },
 });

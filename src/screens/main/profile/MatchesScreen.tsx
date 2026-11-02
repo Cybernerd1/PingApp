@@ -148,8 +148,9 @@ const MatchesContent: React.FC<Omit<Props, 'visible'>> = ({ onClose, onOpenChat 
       {viewedMatch ? (
         <ProfileSheet
           visible={!!viewedMatch}
-          userId={viewedMatch.matched_user.user_id}
-          matchId={viewedMatch.match_id}
+           userId={viewedMatch.matched_user.user_id}
+           matchId={viewedMatch.match_id}
+           chatId={viewedMatch.chat_id}
           onClose={() => setViewedMatch(null)}
           onOpenChat={match => {
             setViewedMatch(null);

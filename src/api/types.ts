@@ -69,6 +69,19 @@ export interface PasswordLoginRequest {
   password: string;
 }
 
+export interface SetPasswordRequest {
+  password: string;
+}
+
+export interface ChangePasswordRequest {
+  current_password: string;
+  new_password: string;
+}
+
+export interface PasswordMutationData extends AuthTokenData {
+  hasPassword: boolean;
+}
+
 export interface GoogleAuthRequest {
   id_token: string;
 }
@@ -129,10 +142,11 @@ export interface UserProfile {
   bio?: string | null;
   interests?: string[];
   photos?: ProfilePhoto[];
-  onboarding_step?: 'profile' | 'interests' | 'photos' | 'preferences' | 'completed';
+  onboarding_step?: 'profile' | 'interests' | 'photos' | 'preferences' | 'create_password' | 'completed';
   onboarding_completed?: boolean;
   /** Shared demo/test account (email + password sign-in). */
   is_demo?: boolean;
+  hasPassword?: boolean;
   created_at?: string;
 }
 
