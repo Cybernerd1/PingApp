@@ -29,7 +29,6 @@ export const PrivacySheet: React.FC<{ visible: boolean; onClose: () => void }> =
       return unwrap(res);
     },
     staleTime: 30 * 60_000,
-    meta: { persist: true },
     enabled: visible,
   });
   const m = useMutation({
@@ -42,7 +41,7 @@ export const PrivacySheet: React.FC<{ visible: boolean; onClose: () => void }> =
     onError: (_e, _p, ctx) => ctx?.prev && qc.setQueryData(PRIVACY_KEY, ctx.prev),
     onSuccess: data => {
       qc.setQueryData(PRIVACY_KEY, data);
-      qc.invalidateQueries({ queryKey: ['discover'] });
+      qc.invalidateQueries({ queryKey: ['feed'] });
     },
   });
   const s = q.data;
@@ -80,7 +79,6 @@ export const BlockedSheet: React.FC<{ visible: boolean; onClose: () => void }> =
     queryKey: ['blockedUsers'],
     queryFn: async () => unwrap(await safetyApi.getBlockedUsers()).users,
     staleTime: 30 * 60_000,
-    meta: { persist: true },
     enabled: visible,
   });
   const unblock = useMutation({

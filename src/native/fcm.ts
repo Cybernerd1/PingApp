@@ -118,14 +118,15 @@ export const setupFCMBackgroundHandler = (): void => {
           icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
           at: Date.now(),
           read: false,
-          kind:
+           kind:
             type === 'match'
               ? 'match'
               : type === 'like'
                 ? 'like'
-                : 'message',
-          chatId: msg.data?.chat_id,
-          avatarUrl: msg.data?.avatar_url,
+                 : 'message',
+           chatId: msg.data?.chat_id,
+           userId: msg.data?.user_id ?? msg.data?.userId ?? msg.data?.sender_id ?? msg.data?.matched_user_id,
+           avatarUrl: msg.data?.avatar_url,
         });
 
         await AsyncStorage.setItem(

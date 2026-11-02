@@ -1,0 +1,221 @@
+diff --git a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/BaseLocationManager.java b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/BaseLocationManager.java
+index 02d2e85..69b8310 100644
+--- a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/BaseLocationManager.java
++++ b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/BaseLocationManager.java
+@@ -71,6 +71,9 @@ public abstract class BaseLocationManager {
+     }
+ 
+     protected void emitError(int code, String message) {
++        if (mReactContext == null) {
++            return;
++        }
+         mReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                 .emit("geolocationError", PositionError.buildError(code, message));
+     }
+diff --git a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
+index 423f7a5..158ca9b 100644
+--- a/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
++++ b/node_modules/@react-native-community/geolocation/android/src/main/java/com/reactnativecommunity/geolocation/PlayServicesLocationManager.java
+@@ -3,6 +3,7 @@ package com.reactnativecommunity.geolocation;
+ import android.annotation.SuppressLint;
+ import android.app.Activity;
+ import android.location.Location;
++import android.os.Handler;
+ import android.os.Looper;
+ import android.util.Log;
+ import android.content.Context;
+@@ -10,6 +11,8 @@ import android.location.LocationManager;
+ 
+ import androidx.annotation.NonNull;
+ 
++import java.util.concurrent.atomic.AtomicBoolean;
++
+ import com.facebook.react.bridge.Callback;
+ import com.facebook.react.bridge.ReactApplicationContext;
+ import com.facebook.react.bridge.ReadableMap;
+@@ -45,10 +48,11 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+ 
+         Activity currentActivity = mReactContext.getCurrentActivity();
+ 
+-        if (currentActivity == null) {
+-            mSingleLocationCallback = createSingleLocationCallback(success, error);
+-            checkLocationSettings(options, mSingleLocationCallback, error);
+-			return;
++if (currentActivity == null) {
++            SingleLocationHandles handles = createSingleLocationCallback(success, error, options);
++            mSingleLocationCallback = handles.callback;
++            checkLocationSettings(options, handles.callback, handles.guardedError, true);
++ 			return;
+         }
+ 
+         try {
+@@ -57,8 +61,9 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+                         if (location != null && (SystemClock.currentTimeMillis() - location.getTime()) < locationOptions.maximumAge) {
+                             success.invoke(locationToMap(location));
+                         } else {
+-                            mSingleLocationCallback = createSingleLocationCallback(success, error);
+-                            checkLocationSettings(options, mSingleLocationCallback, error);
++                            SingleLocationHandles handles = createSingleLocationCallback(success, error, options);
++                            mSingleLocationCallback = handles.callback;
++                            checkLocationSettings(options, handles.callback, handles.guardedError, true);
+                         }
+                     });
+         } catch (SecurityException e) {
+@@ -76,19 +81,28 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+                     return;
+                 }
+ 
++                Location location = locationResult.getLastLocation();
++                if (location == null) {
++                    emitError(PositionError.POSITION_UNAVAILABLE, "No location provided (FusedLocationProvider/observer).");
++                    return;
++                }
++
+                 mReactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+-                            .emit("geolocationDidChange", locationToMap(locationResult.getLastLocation()));
++                            .emit("geolocationDidChange", locationToMap(location));
+             }
+ 
+             @Override
+             public void onLocationAvailability(LocationAvailability locationAvailability) {
++                if (mReactContext == null) {
++                    return;
++                }
+                 if (!locationAvailability.isLocationAvailable()) {
+                     emitError(PositionError.POSITION_UNAVAILABLE, "Location not available (FusedLocationProvider).");
+                 }
+             }
+         };
+ 
+-        checkLocationSettings(options, mLocationCallback, null);
++        checkLocationSettings(options, mLocationCallback, null, false);
+     }
+ 
+     @Override
+@@ -99,7 +113,7 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+         mFusedLocationClient.removeLocationUpdates(mLocationCallback);
+     }
+ 
+-    private void checkLocationSettings(ReadableMap options, LocationCallback locationCallback, Callback error) {
++private void checkLocationSettings(ReadableMap options, LocationCallback locationCallback, Callback error, boolean singleUpdate) {
+         LocationOptions locationOptions = LocationOptions.fromReactMap(options);
+         LocationRequest.Builder requestBuilder = new LocationRequest.Builder(locationOptions.interval);
+         requestBuilder.setPriority(locationOptions.highAccuracy ? Priority.PRIORITY_HIGH_ACCURACY : Priority.PRIORITY_LOW_POWER);
+@@ -112,6 +126,12 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+         if (locationOptions.distanceFilter >= 0) {
+             requestBuilder.setMinUpdateDistanceMeters(locationOptions.distanceFilter);
+         }
++        if (singleUpdate) {
++            // One-shot fix: stop the provider after the first update so the
++            // callback can never fire twice and removeLocationUpdates can never
++            // receive a null listener.
++            requestBuilder.setMaxUpdates(1);
++        }
+         LocationRequest locationRequest = requestBuilder.build();
+ 
+         LocationSettingsRequest.Builder settingsBuilder = new LocationSettingsRequest.Builder();
+@@ -152,32 +172,97 @@ public class PlayServicesLocationManager extends BaseLocationManager {
+         return locationManager != null && (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER));
+     }
+ 
+-    private LocationCallback createSingleLocationCallback(Callback success, Callback error) {
++    private SingleLocationHandles createSingleLocationCallback(Callback success, Callback error, ReadableMap options) {
+         final CallbackHolder callbackHolder = new CallbackHolder(success, error);
++        final AtomicBoolean settled = new AtomicBoolean(false);
++        final long timeoutMillis = Math.min(
++                LocationOptions.fromReactMap(options).timeout,
++                1000L * 60L * 10L);
++        final Handler timeoutHandler = new Handler(Looper.getMainLooper());
++        final LocationCallback[] selfHolder = new LocationCallback[1];
++        final Runnable timeoutRunnable = new Runnable() {
++            @Override
++            public void run() {
++                if (!settled.compareAndSet(false, true)) {
++                    return;
++                }
++                LocationCallback me = selfHolder[0];
++                if (me != null) {
++                    mFusedLocationClient.removeLocationUpdates(me);
++                }
++                if (mSingleLocationCallback == me) {
++                    mSingleLocationCallback = null;
++                }
++                callbackHolder.error(PositionError.buildError(PositionError.TIMEOUT, "Location request timed out (FusedLocationProvider)."));
++            }
++        };
+ 
+-        return new LocationCallback() {
++        Callback guardedError = new Callback() {
++            @Override
++            public void invoke(Object... args) {
++                if (!settled.compareAndSet(false, true)) {
++                    return;
++                }
++                timeoutHandler.removeCallbacks(timeoutRunnable);
++                LocationCallback me = selfHolder[0];
++                if (me != null) {
++                    mFusedLocationClient.removeLocationUpdates(me);
++                }
++                if (mSingleLocationCallback == me) {
++                    mSingleLocationCallback = null;
++                }
++                error.invoke(args);
++            }
++        };
++
++        LocationCallback callback = new LocationCallback() {
+             @Override
+             public void onLocationResult(@NonNull LocationResult locationResult) {
+                 Location location = locationResult.getLastLocation();
+-
+                 if (location == null) {
++                    settleAndRemove(settled, timeoutHandler, timeoutRunnable, selfHolder);
+                     callbackHolder.error(PositionError.buildError(PositionError.POSITION_UNAVAILABLE, "No location provided (FusedLocationProvider/lastLocation)."));
+                     return;
+                 }
+-
++                settleAndRemove(settled, timeoutHandler, timeoutRunnable, selfHolder);
+                 callbackHolder.success(location);
+-
+-                mFusedLocationClient.removeLocationUpdates(mSingleLocationCallback);
+-                mSingleLocationCallback = null;
+             }
+ 
+             @Override
+             public void onLocationAvailability(@NonNull LocationAvailability locationAvailability) {
+                 if (!locationAvailability.isLocationAvailable()) {
++                    settleAndRemove(settled, timeoutHandler, timeoutRunnable, selfHolder);
+                     callbackHolder.error(PositionError.buildError(PositionError.POSITION_UNAVAILABLE, "Location not available (FusedLocationProvider/lastLocation)."));
+                 }
+             }
+         };
++        selfHolder[0] = callback;
++        timeoutHandler.postDelayed(timeoutRunnable, timeoutMillis);
++        return new SingleLocationHandles(callback, guardedError);
++    }
++
++    /** Holds the registered callback and the error wrapper that shares its settled gate. */
++    private static class SingleLocationHandles {
++        final LocationCallback callback;
++        final Callback guardedError;
++        SingleLocationHandles(LocationCallback callback, Callback guardedError) {
++            this.callback = callback;
++            this.guardedError = guardedError;
++        }
++    }
++
++    private void settleAndRemove(AtomicBoolean settled, Handler timeoutHandler, Runnable timeoutRunnable, LocationCallback[] selfHolder) {
++        if (!settled.compareAndSet(false, true)) {
++            return;
++        }
++        timeoutHandler.removeCallbacks(timeoutRunnable);
++        LocationCallback me = selfHolder[0];
++        if (me != null) {
++            mFusedLocationClient.removeLocationUpdates(me);
++        }
++        if (mSingleLocationCallback == me) {
++            mSingleLocationCallback = null;
++        }
+     }
+ 
+     private static class CallbackHolder {

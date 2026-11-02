@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { launchImageLibrary } from 'react-native-image-picker';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
@@ -21,7 +21,7 @@ import { unwrap } from '../../api/client';
 import { ChatMessage } from '../../api/types';
 import { realtime } from '../../realtime/socket';
 import { useSession } from '../../session/SessionContext';
-import { CHATS_KEY, MATCHES_KEY, OpenChat } from './ChatsScreen';
+import { OpenChat } from './ChatsScreen';
 import { ProfileSheet } from './ProfileSheet';
 import { KeyboardAvoidingView, useKeyboardState } from 'react-native-keyboard-controller';
 
@@ -30,7 +30,6 @@ const MAX_LEN = 1000;
 /** S13 — conversation: history over REST, live messages over Socket.IO. */
 export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> = ({ chat, onBack }) => {
   const { me } = useSession();
-  const qc = useQueryClient();
   const listRef = useRef<FlatList<ChatMessage>>(null);
   const { mediaViewer, openMedia } = useMediaViewer();
   const [text, setText] = useState('');
@@ -90,10 +89,11 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
       offs.forEach(off => off());
       realtime.stopTyping(chat.chatId);
       realtime.leaveChat(chat.chatId);
-      qc.invalidateQueries({ queryKey: CHATS_KEY });
-      qc.invalidateQueries({ queryKey: MATCHES_KEY });
+      // MainShell's realtime listener already invalidates the conversation list
+      // when messages arrive. Do not refetch on back navigation: the list stays
+      // mounted underneath the thread and retains its scroll position.
     };
-  }, [chat.chatId, me.user_id, qc]);
+  }, [chat.chatId, me.user_id]);
 
   // Auto-hide "typing…" if the stop event never arrives.
   useEffect(() => {

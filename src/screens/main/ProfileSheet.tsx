@@ -1,17 +1,30 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
 import { ArrowLeft, ChatIcon, Chip, Close, Heart, IconButton, More } from '../../ui';
 import { profileApi } from '../../api/profile';
 import { unwrap } from '../../api/client';
-import { DiscoverCandidate, MatchItem } from '../../api/types';
+import { DiscoverCandidate, MatchItem, SwipeAction, UserProfile } from '../../api/types';
+import { interactionsApi } from '../../api/interactions';
+import { matchesApi } from '../../api/matches';
 import { distanceLabel } from './DeckContext';
 import { SafetySheet } from './SafetySheet';
 
 const { width: W } = Dimensions.get('window');
+
+const toCandidate = (p: UserProfile): DiscoverCandidate => ({
+  user_id: p.user_id,
+  full_name: p.full_name,
+  age: p.age ?? null,
+  gender: p.gender ?? null,
+  bio: p.bio ?? null,
+  distance_km: null,
+  interests: p.interests ?? [],
+  photos: (p.photos ?? []).map(photo => ({ photo_id: photo.photo_id, photo_url: photo.photo_url })),
+});
 
 interface Props {
   /** A discover card (already has everything) … */
@@ -41,9 +54,11 @@ export const ProfileSheet: React.FC<Props> = props => (
 
 const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId, onOpenChat }) => {
   const insets = useSafeAreaInsets();
+  const qc = useQueryClient();
   const id = candidate?.user_id ?? userId ?? null;
   const [menu, setMenu] = useState(false);
   const [page, setPage] = useState(0);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const remote = useQuery({
     queryKey: ['publicProfile', id],
@@ -51,11 +66,43 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
     enabled: visible && !!id && !candidate,
   });
 
+  const matches = useQuery({
+    queryKey: ['matches'],
+    queryFn: async () => unwrap(await matchesApi.getMatches()).matches,
+    enabled: visible && !!id && !candidate,
+    staleTime: 30_000,
+  });
+
+  const existingMatch = matches.data?.find(item => item.matched_user.user_id === id);
+  const activeMatchId = matchId ?? existingMatch?.match_id ?? null;
+  const actionCandidate = candidate ?? (remote.data ? toCandidate(remote.data) : null);
+  const notificationAction = useMutation({
+    mutationFn: async (action: SwipeAction) => interactionsApi.swipe({ user_id: actionCandidate!.user_id, action }),
+    onMutate: () => setActionError(null),
+    onSuccess: result => {
+      if (result.status === 'error') {
+        // A like notification can outlive the profile. Treat definitive server
+        // rejections as a silent no-op rather than crashing or restoring a card.
+        if ([403, 404, 409, 410].includes(result.httpStatus ?? 0)) {
+          onClose();
+        } else {
+          setActionError(result.message);
+        }
+        return;
+      }
+      qc.invalidateQueries({ queryKey: ['matches'] });
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['feed'] });
+      onClose();
+    },
+  });
+
   const name = candidate?.full_name ?? remote.data?.full_name ?? '';
   const age = candidate?.age ?? remote.data?.age ?? null;
   const bio = candidate?.bio ?? remote.data?.bio ?? null;
   const interests = candidate?.interests ?? remote.data?.interests ?? [];
   const photos = (candidate?.photos ?? remote.data?.photos ?? []).map(p => p.photo_url);
+  const showActions = !activeMatchId && (!!onLike || !!onPass || (!candidate && !!actionCandidate && !matches.isLoading));
 
   return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -130,31 +177,40 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
           ) : null}
         </View>
 
-        {/* Like/Pass action buttons (from Discover) */}
-        {onLike || onPass ? (
-          <View style={[styles.actions, { bottom: insets.bottom + 24 }]}>
+        {/* Like/Pass action buttons (from Discover or a like notification). */}
+        {showActions ? (
+          <View style={[styles.actions, { bottom: insets.bottom + 24 }]}> 
             {onPass ? (
-              <IconButton accessibilityLabel="Pass" onPress={onPass} size={64} variant="white">
+              <IconButton accessibilityLabel="Pass" onPress={onPass} disabled={notificationAction.isPending} size={64} variant="white">
+                <Close size={26} color={Colors.danger} />
+              </IconButton>
+            ) : !candidate ? (
+              <IconButton accessibilityLabel="Pass" onPress={() => notificationAction.mutate('dislike')} disabled={notificationAction.isPending} size={64} variant="white">
                 <Close size={26} color={Colors.danger} />
               </IconButton>
             ) : null}
             {onLike ? (
-              <IconButton accessibilityLabel="Like" onPress={onLike} size={72} variant="primary">
+              <IconButton accessibilityLabel="Like" onPress={onLike} disabled={notificationAction.isPending} size={72} variant="primary">
+                <Heart size={30} />
+              </IconButton>
+            ) : !candidate ? (
+              <IconButton accessibilityLabel="Like" onPress={() => notificationAction.mutate('like')} disabled={notificationAction.isPending} size={72} variant="primary">
                 <Heart size={30} />
               </IconButton>
             ) : null}
           </View>
         ) : null}
+        {actionError ? <Text style={[styles.actionError, { bottom: insets.bottom + 104 }]}>{actionError}</Text> : null}
 
         {/* Chat button — only visible when already matched */}
-        {matchId && onOpenChat && !onLike && !onPass ? (
+        {activeMatchId && onOpenChat && !showActions ? (
           <View style={[styles.chatBar, { paddingBottom: insets.bottom + 16 }]}>
             <Pressable
               style={({ pressed }) => [styles.chatBtn, pressed && styles.chatBtnPressed]}
               onPress={() => {
                 onClose();
                 onOpenChat({
-                  match_id: matchId,
+                   match_id: activeMatchId,
                   chat_id: null,
                   matched_at: '',
                   has_conversation: true,
@@ -181,7 +237,7 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
             onClose={() => setMenu(false)}
             userId={id}
             name={name}
-            matchId={matchId}
+             matchId={activeMatchId}
             onDone={kind => {
               setMenu(false);
               onSafetyAction?.(kind);
@@ -217,6 +273,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   topBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
   actions: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28 },
+  actionError: { position: 'absolute', left: 24, right: 24, ...Typography.caption, color: Colors.danger, textAlign: 'center' },
   // Chat CTA
   chatBar: {
     position: 'absolute',

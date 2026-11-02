@@ -7,6 +7,7 @@ import { Chip, ListRow, PillButton, Sheet, useConfirmDialog } from '../../ui';
 import { safetyApi } from '../../api/safety';
 import { matchesApi } from '../../api/matches';
 import { ReportReason } from '../../api/types';
+import { purgeUserCache } from '../../cache/purge';
 
 const REASONS: { value: ReportReason; label: string }[] = [
   { value: 'fake_profile', label: 'Fake profile' },
@@ -47,7 +48,7 @@ export const SafetySheet: React.FC<Props> = ({ visible, onClose, userId, name, m
   };
 
   const invalidate = () => {
-    ['matches', 'chats', 'discover', 'blockedUsers'].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
+    ['matches', 'conversations', 'feed', 'blockedUsers'].forEach(k => qc.invalidateQueries({ queryKey: [k] }));
   };
 
   const run = async (fn: () => Promise<{ status: string; message?: string }>, kind: 'blocked' | 'reported' | 'unmatched') => {
@@ -57,6 +58,7 @@ export const SafetySheet: React.FC<Props> = ({ visible, onClose, userId, name, m
     setBusy(false);
     if (res.status === 'error') return setError(res.message ?? 'Something went wrong');
     invalidate();
+    if (kind === 'blocked' || kind === 'unmatched') purgeUserCache(userId);
     close();
     onDone(kind);
   };

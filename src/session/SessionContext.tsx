@@ -4,6 +4,7 @@ import { profileApi } from '../api/profile';
 import { unwrap } from '../api/client';
 import { UserProfile } from '../api/types';
 import { GoogleIdentity } from './session';
+import { ME_KEY } from '../cache/queryClient';
 
 interface SessionValue {
   me: UserProfile;
@@ -14,8 +15,6 @@ interface SessionValue {
 }
 
 const Ctx = createContext<SessionValue | null>(null);
-
-export const ME_KEY = ['me'] as const;
 
 /** Main-app session: the signed-in user's profile, kept fresh via react-query. */
 export const SessionProvider: React.FC<{

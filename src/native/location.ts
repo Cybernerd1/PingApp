@@ -65,15 +65,34 @@ function getPosition(highAccuracy: boolean): Promise<LocationCoordinates> {
   });
 }
 
+/** Deduplicated single-flight for the high→low fallback sequence. */
+let inFlight: Promise<LocationCoordinates> | null = null;
+
+function getCoordsOnce(): Promise<LocationCoordinates> {
+  if (inFlight) return inFlight;
+  inFlight = (async () => {
+    try {
+      return await getPosition(true);
+    } catch {
+      try {
+        return await getPosition(false);
+      } catch (e) {
+        // Preserve the original RN Geolocation error (including .code) so
+        // callers can distinguish PERMISSION_DENIED / POSITION_UNAVAILABLE / TIMEOUT.
+        throw e;
+      }
+    } finally {
+      inFlight = null;
+    }
+  })();
+  return inFlight;
+}
+
 /** Asks for permission if needed, then returns the current coordinates (coarse fallback). */
 export async function getCurrentCoords(): Promise<LocationCoordinates> {
   getGeolocation(); // fail fast with LocationUnavailable before prompting
   await ensurePermission();
-  try {
-    return await getPosition(true);
-  } catch {
-    return getPosition(false);
-  }
+  return getCoordsOnce();
 }
 
 /**
@@ -83,8 +102,8 @@ export async function getCurrentCoords(): Promise<LocationCoordinates> {
  */
 export async function ensureLocationReady(): Promise<LocationCoordinates | null> {
   try {
-    await getCurrentCoords();
-    return await getPosition(false);
+    await ensurePermission();
+    return await getCoordsOnce();
   } catch {
     return null;
   }

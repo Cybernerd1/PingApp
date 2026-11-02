@@ -7,6 +7,7 @@ import { GenderType, LocationCoordinates, UserProfile } from '../../api/types';
 import { GoogleIdentity, ONBOARDING_ORDER, OnboardingStep } from '../../session/session';
 import { getCurrentCoords, LocationPermissionDenied, LocationUnavailable } from '../../native/location';
 import { useConfirmDialog } from '../../ui/ConfirmDialog';
+import { ME_KEY, SETTINGS_KEY } from '../../cache/queryClient';
 import { GenderStep } from './GenderStep';
 import { BasicsStep, DobParts, dobToIso } from './BasicsStep';
 import { InterestsStep } from './InterestsStep';
@@ -127,15 +128,15 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
       if (loc.status === 'error') setLocationError(loc.message);
     }
 
-    qc.invalidateQueries({ queryKey: ['userProfile'] });
+    qc.invalidateQueries({ queryKey: ME_KEY });
     setSaving(false);
     next();
   };
 
   const finish = async () => {
     const res = await profileApi.getOwnProfile();
-    qc.invalidateQueries({ queryKey: ['userProfile'] });
-    qc.invalidateQueries({ queryKey: ['userPreferences'] });
+    qc.invalidateQueries({ queryKey: ME_KEY });
+    qc.invalidateQueries({ queryKey: SETTINGS_KEY });
     onComplete(res.status === 'success' ? res.data : profile);
   };
 

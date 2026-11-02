@@ -7,6 +7,7 @@ import { Chip, GlassCard, PillButton, Sheet, Stepper } from '../../ui';
 import { preferencesApi } from '../../api/preferences';
 import { unwrap } from '../../api/client';
 import { DatingPreferences, PreferenceGenderType } from '../../api/types';
+import { SETTINGS_KEY } from '../../cache/queryClient';
 
 const SHOW_ME: { value: PreferenceGenderType; label: string }[] = [
   { value: 'female', label: 'Women' },
@@ -18,7 +19,7 @@ const SHOW_ME: { value: PreferenceGenderType; label: string }[] = [
 export const NO_DISTANCE_LIMIT = 20000;
 const DISTANCES = [5, 10, 25, 50, 100, NO_DISTANCE_LIMIT];
 
-export const PREFS_KEY = ['preferences'];
+export const PREFS_KEY = SETTINGS_KEY;
 
 /** S11 — Discover filters (GET/PUT /users/preferences). */
 export const FiltersSheet: React.FC<{ visible: boolean; onClose: () => void; onSaved: () => void }> = ({

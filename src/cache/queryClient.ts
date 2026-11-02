@@ -6,10 +6,10 @@
  */
 import { focusManager, onlineManager, QueryClient } from '@tanstack/react-query';
 import { AppState } from 'react-native';
+import type { DatingPreferences } from '../api/types';
 
 let NetInfo: any = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   NetInfo = require('@react-native-community/netinfo').default;
 } catch {
   NetInfo = null;
@@ -22,8 +22,16 @@ try {
  */
 export const CACHE_VERSION = 'v1';
 
-/** The swipe-feed query (DeckContext). Server excludes swiped/matched/blocked users. */
-export const DECK_KEY = ['discover'] as const;
+export const ME_KEY = ['me'] as const;
+export const SETTINGS_KEY = ['settings'] as const;
+export const CONVERSATIONS_KEY = ['conversations'] as const;
+/** Prefix for all feed variants. Server excludes swiped/matched/blocked users. */
+export const FEED_PREFIX = ['feed'] as const;
+
+export type FeedFilters = Pick<DatingPreferences, 'interested_in' | 'min_age' | 'max_age' | 'max_distance_km'>;
+
+export const feedKey = (filters: FeedFilters, locationBucket: string) =>
+  [...FEED_PREFIX, filters, locationBucket] as const;
 
 export const queryClient = new QueryClient({
   defaultOptions: {

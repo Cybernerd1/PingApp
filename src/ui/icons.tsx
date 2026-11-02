@@ -31,6 +31,13 @@ export const Close: React.FC<IconProps> = ({ size = 18, color = Colors.ink }) =>
   </Svg>
 );
 
+export const Search: React.FC<IconProps> = ({ size = 20, color = Colors.ink }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx={10.5} cy={10.5} r={6.5} stroke={color} strokeWidth={2} />
+    <Path d="M16 16l4.5 4.5" stroke={color} strokeWidth={2} strokeLinecap="round" />
+  </Svg>
+);
+
 export const Check: React.FC<IconProps> = ({ size = 14, color = Colors.white }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d="M5 12.5l4.5 4.5L19 7.5" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
