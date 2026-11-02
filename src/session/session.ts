@@ -23,9 +23,9 @@ import { ApiError, unwrap } from '../api/client';
 import { queryClient, ME_KEY, SETTINGS_KEY } from '../cache/queryClient';
 import { purgeCache } from '../cache/purge';
 
-export type OnboardingStep = 'gender' | 'basics' | 'interests' | 'photos' | 'preferences';
+export type OnboardingStep = 'gender' | 'basics' | 'interests' | 'photos' | 'preferences' | 'create_password';
 
-export const ONBOARDING_ORDER: OnboardingStep[] = ['gender', 'basics', 'interests', 'photos', 'preferences'];
+export const ONBOARDING_ORDER: OnboardingStep[] = ['gender', 'basics', 'interests', 'photos', 'preferences', 'create_password'];
 
 export interface GoogleIdentity {
   email?: string | null;
@@ -42,6 +42,23 @@ export type SessionState =
 
 let identity: GoogleIdentity | null = null;
 let configured = false;
+const SESSION_PROFILE_TIMEOUT = 10_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Session bootstrap timed out')), timeoutMs);
+    promise.then(
+      value => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 function configureGoogle() {
   if (configured) return;
@@ -147,12 +164,15 @@ export async function resolveSession(): Promise<SessionState> {
       .catch(() => undefined);
   } else {
     try {
-      profile = await queryClient.fetchQuery({
-        queryKey: ME_KEY,
-        queryFn: async () => unwrap(await profileApi.getOwnProfile()),
-        staleTime: 30 * 60_000,
-        meta: { persist: true },
-      });
+      profile = await withTimeout(
+        queryClient.fetchQuery({
+          queryKey: ME_KEY,
+          queryFn: async () => unwrap(await profileApi.getOwnProfile()),
+          staleTime: 30 * 60_000,
+          meta: { persist: true },
+        }),
+        SESSION_PROFILE_TIMEOUT,
+      );
     } catch (error) {
       const apiError = error instanceof ApiError ? error : null;
       if (apiError?.code === 'UNAUTHORIZED') {
@@ -177,26 +197,19 @@ async function deriveStep(p: UserProfile): Promise<OnboardingStep | null> {
   if ((p.interests?.length ?? 0) < 3) return 'interests';
   if ((p.photos?.length ?? 0) < 1) return 'photos';
   if (!queryClient.getQueryData(SETTINGS_KEY)) {
-    queryClient
-      .prefetchQuery({
+    try {
+      await queryClient.fetchQuery({
         queryKey: SETTINGS_KEY,
         queryFn: async () => unwrap(await preferencesApi.getPreferences()),
         staleTime: 30 * 60_000,
         meta: { persist: true },
-      })
-      .catch(() => undefined);
-    return null;
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'NOT_FOUND') return 'preferences';
+      return null;
+    }
   }
-  try {
-    await queryClient.fetchQuery({
-      queryKey: SETTINGS_KEY,
-      queryFn: async () => unwrap(await preferencesApi.getPreferences()),
-      staleTime: 30 * 60_000,
-      meta: { persist: true },
-    });
-  } catch (error) {
-    if (error instanceof ApiError && error.code === 'NOT_FOUND') return 'preferences';
-  }
+  if (!p.hasPassword) return 'create_password';
   return null;
 }
 

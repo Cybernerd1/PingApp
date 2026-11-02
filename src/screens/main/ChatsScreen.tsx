@@ -97,6 +97,7 @@ export const ChatsScreen: React.FC<{
       data={filteredList}
       keyExtractor={c => c.chat_id}
       contentContainerStyle={styles.list}
+      keyboardShouldPersistTaps="handled"
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.primary} />}
       ListHeaderComponent={
         <View>
@@ -162,7 +163,7 @@ export const ChatsScreen: React.FC<{
           {filteredFresh.length ? (
             <>
               <Text style={styles.section}>New matches</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.freshRow}>
+              <ScrollView horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false} contentContainerStyle={styles.freshRow}>
                 {filteredFresh.map(m => (
                   <Pressable
                     key={m.match_id}
@@ -195,7 +196,9 @@ export const ChatsScreen: React.FC<{
           <EmptyState loading title="Loading chats…" />
         ) : chats.isError ? (
           <EmptyState emoji="📡" title="Couldn’t load chats" message={(chats.error as Error).message} actionLabel="Try again" onAction={refresh} />
-        ) : filteredFresh.length ? undefined : (
+        ) : filteredFresh.length ? undefined : normalizedSearch ? (
+          <EmptyState emoji="🔎" title="No matching chats" message="Try another profile name." />
+        ) : (
           <EmptyState emoji="💬" title="No chats yet" message="When you and someone like each other, you can chat here." />
         )
       }

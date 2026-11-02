@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../../theme/colors';
@@ -9,6 +9,10 @@ import { safetyApi } from '../../../api/safety';
 import { unwrap } from '../../../api/client';
 import { PrivacySettings } from '../../../api/types';
 import { PhotoManager } from '../../../ui/PhotoManager';
+import { PasswordInput } from '../../../ui';
+import { authApi } from '../../../api/auth';
+import { tokenStore } from '../../../session/tokenStore';
+import { passwordError, passwordMatchError } from '../../../validation/password';
 
 const PRIVACY_KEY = ['privacy'];
 const DEFAULT_PRIVACY: PrivacySettings = {
@@ -126,6 +130,112 @@ export const PhotosSheet: React.FC<{ visible: boolean; onClose: () => void }> = 
     <PhotoManager gutter={20} />
   </Sheet>
 );
+
+/** Set or update the signed-in user's email/password credential. */
+export const PasswordSheet: React.FC<{
+  visible: boolean;
+  hasPassword: boolean;
+  onClose: () => void;
+  onSaved: () => void | Promise<void>;
+}> = ({ visible, hasPassword, onClose, onSaved }) => {
+  const [current, setCurrent] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) {
+      setCurrent('');
+      setPassword('');
+      setConfirmation('');
+      setCurrentError(null);
+      setError(null);
+    }
+  }, [visible]);
+
+  const close = () => {
+    if (!saving) onClose();
+  };
+
+  const submit = async () => {
+    setCurrentError(null);
+    setError(null);
+    const validation = passwordError(password) ?? passwordMatchError(password, confirmation);
+    if (validation) {
+      setError(validation);
+      return;
+    }
+    if (hasPassword && !current) {
+      setCurrentError('Enter your current password.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let response = hasPassword
+        ? await authApi.changePassword({ current_password: current, new_password: password })
+        : await authApi.setPassword({ password });
+      if (response.status === 'error' && !hasPassword && (response.code === 'NETWORK_ERROR' || response.code === 'INTERNAL_ERROR')) {
+        response = await authApi.setPassword({ password });
+      }
+      if (response.status === 'error') {
+        if (hasPassword && response.code === 'UNAUTHORIZED') setCurrentError('Current password is incorrect.');
+        else setError(response.message);
+        return;
+      }
+      await tokenStore.set(response.data.access_token, response.data.refresh_token);
+      await onSaved();
+      onClose();
+    } finally {
+      setCurrent('');
+      setPassword('');
+      setConfirmation('');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Sheet visible={visible} onClose={close} title={hasPassword ? 'Update password' : 'Set password'}>
+      {hasPassword ? (
+        <PasswordInput
+          label="Current Password"
+          value={current}
+          onChangeText={setCurrent}
+          placeholder="Enter current password"
+          autoComplete="password"
+          textContentType="password"
+          returnKeyType="next"
+          error={currentError ?? undefined}
+        />
+      ) : null}
+      <PasswordInput
+        label="New Password"
+        value={password}
+        onChangeText={setPassword}
+        placeholder="Create a password"
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="next"
+        hint="At least 8 characters with an uppercase letter, lowercase letter, and number."
+      />
+      <PasswordInput
+        label="Confirm Password"
+        value={confirmation}
+        onChangeText={setConfirmation}
+        placeholder="Enter it again"
+        autoComplete="new-password"
+        textContentType="newPassword"
+        returnKeyType="done"
+        onSubmitEditing={submit}
+        error={confirmation.length > 0 ? passwordMatchError(password, confirmation) ?? undefined : undefined}
+      />
+      {error ? <Text style={styles.err}>{error}</Text> : null}
+      <PillButton title={hasPassword ? 'Update password' : 'Set password'} onPress={submit} loading={saving} />
+    </Sheet>
+  );
+};
 
 const styles = StyleSheet.create({
   loader: { marginVertical: 40 },

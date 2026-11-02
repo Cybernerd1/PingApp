@@ -20,7 +20,7 @@ try {
  * shape it feeds into does). The old persisted cache is discarded on next
  * launch — restore buster — instead of rehydrating incompatible data.
  */
-export const CACHE_VERSION = 'v1';
+export const CACHE_VERSION = 'v2';
 
 export const ME_KEY = ['me'] as const;
 export const SETTINGS_KEY = ['settings'] as const;

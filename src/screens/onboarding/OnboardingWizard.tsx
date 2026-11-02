@@ -13,6 +13,7 @@ import { BasicsStep, DobParts, dobToIso } from './BasicsStep';
 import { InterestsStep } from './InterestsStep';
 import { PhotosStep } from './PhotosStep';
 import { PreferencesStep } from './PreferencesStep';
+import { CreatePasswordStep } from './CreatePasswordStep';
 
 interface Props {
   initialStep: OnboardingStep;
@@ -187,6 +188,9 @@ export const OnboardingWizard: React.FC<Props> = ({ initialStep, profile, identi
       return <PhotosStep step={4} total={total} onBack={back} onDone={next} />;
     case 'preferences':
     default:
-      return <PreferencesStep step={5} total={total} ownGender={gender} onBack={back} onDone={finish} />;
+       if (step === 'preferences') {
+         return <PreferencesStep step={5} total={total} ownGender={gender} onBack={back} onDone={next} />;
+       }
+       return <CreatePasswordStep step={6} total={total} onBack={back} onDone={finish} />;
   }
 };

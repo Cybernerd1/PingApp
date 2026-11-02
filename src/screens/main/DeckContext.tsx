@@ -10,7 +10,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { discoverApi } from '../../api/discover';
 import { interactionsApi } from '../../api/interactions';
 import { unwrap } from '../../api/client';
-import { SETTINGS_KEY, feedKey } from '../../cache/queryClient';
+import { FEED_PREFIX, SETTINGS_KEY, feedKey } from '../../cache/queryClient';
 import type { FeedFilters } from '../../cache/queryClient';
 import { DiscoverCandidate, LocationCoordinates, SwipeAction } from '../../api/types';
 import { preferencesApi } from '../../api/preferences';
@@ -31,7 +31,8 @@ interface DeckValue {
   reset: () => void;
   /** Change the coarse location segment used by the feed cache key. */
   updateLocation: (coords: LocationCoordinates) => void;
-  swipe: (c: DiscoverCandidate, action: SwipeAction) => Promise<void>;
+  swipe: (c: DiscoverCandidate, action: SwipeAction) => Promise<'success' | 'rejected' | 'retry'>;
+  remove: (userId: string) => void;
   canRewind: boolean;
   rewind: () => Promise<void>;
   lastMatch: MatchEvent | null;
@@ -64,6 +65,8 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
     meta: { persist: true },
   });
   const [locationBucket, setLocationBucket] = useState('unknown');
+  const [locationAttempted, setLocationAttempted] = useState(false);
+  const locationBucketRef = useRef('unknown');
   const fetchDeck = useCallback(async () => unwrap(await discoverApi.getDiscoverStack(BATCH)).users, []);
   const filters = useMemo<FeedFilters>(() => {
     const value = settings.data;
@@ -81,6 +84,7 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryKey,
     queryFn: fetchDeck,
     staleTime: 5 * 60_000,
+    enabled: settings.isSuccess && locationAttempted,
     // Persisted: dehydrated to the encrypted disk store by <CacheGate/>.
     meta: { persist: true },
   });
@@ -97,9 +101,16 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
   fetchingRef.current = query.isFetching;
 
   useEffect(() => {
-    ensureLocationReady().then(coords => {
-      if (coords) setLocationBucket(locationBucketFor(coords));
-    });
+    ensureLocationReady()
+      .then(coords => {
+        if (coords) {
+          const nextBucket = locationBucketFor(coords);
+          locationBucketRef.current = nextBucket;
+          setLocationBucket(nextBucket);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => setLocationAttempted(true));
   }, []);
 
   /**
@@ -142,14 +153,14 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Definitive rejections — the server now rejects this profile
         // (deleted 404/410, blocked 403, already swiped 409): silently skip to
         // the next profile, no card return, no notice, no crash.
-        if (http === 403 || http === 404 || http === 409 || http === 410) return;
+        if (http === 403 || http === 404 || http === 409 || http === 410) return 'rejected';
         // Everything else is transient (429 rate limit / network / 5xx): put
         // the card back so the swipe isn't silently lost and explain why.
         swiped.current.delete(c.user_id);
         setQueue(prev => (prev.some(x => x.user_id === c.user_id) ? prev : [c, ...prev]));
         if (!queueRef.current.some(x => x.user_id === c.user_id)) queueRef.current = [c, ...queueRef.current];
         setNotice(res.code === 'RATE_LIMIT_EXCEEDED' ? 'Slow down a little — try again in a minute.' : res.message);
-        return;
+        return 'retry';
       }
       // The swipe is now recorded server-side — only safe point to prefetch,
       // so the next batch is guaranteed to exclude this user.
@@ -160,6 +171,7 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
         qc.invalidateQueries({ queryKey: ['conversations'] });
       }
       if (queueRef.current.length < REFILL_AT) prefetchNextBatch();
+      return 'success';
     },
     [qc, queryKey, prefetchNextBatch],
   );
@@ -193,11 +205,26 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [qc, queryKey]);
 
   const updateLocation = useCallback((coords: LocationCoordinates) => {
+    const nextBucket = locationBucketFor(coords);
+    if (nextBucket === locationBucketRef.current) {
+      qc.invalidateQueries({ queryKey });
+      return;
+    }
     setQueue([]);
     setHistory([]);
     swiped.current.clear();
-    setLocationBucket(locationBucketFor(coords));
-  }, []);
+    locationBucketRef.current = nextBucket;
+    setLocationBucket(nextBucket);
+  }, [qc, queryKey]);
+
+  const remove = useCallback((userId: string) => {
+    swiped.current.add(userId);
+    setQueue(prev => prev.filter(c => c.user_id !== userId));
+    queueRef.current = queueRef.current.filter(c => c.user_id !== userId);
+    qc.getQueryCache().findAll({ queryKey: FEED_PREFIX }).forEach(feed => {
+      qc.setQueryData<DiscoverCandidate[]>(feed.queryKey, old => old?.filter(c => c.user_id !== userId));
+    });
+  }, [qc]);
 
   const value = useMemo<DeckValue>(
     () => ({
@@ -208,6 +235,7 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
       reset,
       updateLocation,
       swipe,
+      remove,
       canRewind: history.length > 0,
       rewind,
       lastMatch,
@@ -215,7 +243,7 @@ export const DeckProvider: React.FC<{ children: React.ReactNode }> = ({ children
       notice,
       clearNotice: () => setNotice(null),
     }),
-    [queue, query.isLoading, query.isFetching, query.isError, query.error, refresh, reset, updateLocation, swipe, history.length, rewind, lastMatch, notice],
+    [queue, query.isLoading, query.isFetching, query.isError, query.error, refresh, reset, updateLocation, swipe, remove, history.length, rewind, lastMatch, notice],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

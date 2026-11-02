@@ -13,7 +13,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { Colors } from '../theme/colors';
-import { CACHE_VERSION, queryClient } from './queryClient';
+import { CACHE_VERSION, FEED_PREFIX, queryClient } from './queryClient';
 import { initPersister } from './persister';
 import { initStorage } from './storage';
 
@@ -58,9 +58,15 @@ export const CacheGate: React.FC<{ children: React.ReactNode }> = ({ children })
             query.state.status === 'success' && query.meta?.persist === true,
         },
       }}
-      onSuccess={() => {
-        // Replay mutations that were paused offline.
-        queryClient.resumePausedMutations().catch(() => undefined);
+      onSuccess={async () => {
+        const cutoff = Date.now() - 30 * 60_000;
+        queryClient.getQueryCache().findAll({ queryKey: FEED_PREFIX }).forEach(query => {
+          if (query.state.dataUpdatedAt > 0 && query.state.dataUpdatedAt < cutoff) {
+            queryClient.removeQueries({ queryKey: query.queryKey, exact: true });
+          }
+        });
+        // Replay mutations only after stale feed cards have been removed.
+        await queryClient.resumePausedMutations().catch(() => undefined);
       }}
     >
       {children}

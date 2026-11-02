@@ -344,7 +344,7 @@ const ShellInner: React.FC<{ welcomeToast: ToastConfig | null }> = ({ welcomeToa
           body: p.body,
           icon: type === 'match' ? '✨' : type === 'like' ? '💜' : '💬',
           chatId: p.data?.chat_id,
-          userId: p.data?.user_id ?? p.data?.userId ?? p.data?.sender_id ?? p.data?.matched_user_id,
+          userId: p.data?.user_id ?? p.data?.userId ?? p.data?.sender_id ?? p.data?.matched_user_id ?? p.data?.from_user_id,
           avatarUrl: p.data?.avatar_url,
           kind: type === 'match' ? 'match' : type === 'like' ? 'like' : 'message',
         });

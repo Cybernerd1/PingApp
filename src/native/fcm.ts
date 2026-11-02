@@ -125,7 +125,7 @@ export const setupFCMBackgroundHandler = (): void => {
                 ? 'like'
                  : 'message',
            chatId: msg.data?.chat_id,
-           userId: msg.data?.user_id ?? msg.data?.userId ?? msg.data?.sender_id ?? msg.data?.matched_user_id,
+           userId: msg.data?.user_id ?? msg.data?.userId ?? msg.data?.sender_id ?? msg.data?.matched_user_id ?? msg.data?.from_user_id,
            avatarUrl: msg.data?.avatar_url,
         });
 

@@ -19,7 +19,7 @@ import { useDeck } from '../DeckContext';
 import { FiltersSheet } from '../FiltersSheet';
 import { EditProfileSheet } from './EditProfileSheet';
 import { InterestsSheet } from './InterestsSheet';
-import { BlockedSheet, PhotosSheet, PrivacySheet } from './SettingsSheets';
+import { BlockedSheet, PasswordSheet, PhotosSheet, PrivacySheet } from './SettingsSheets';
 import { LegalKind, LegalSheet } from './LegalSheet';
 import { matchesApi } from '../../../api/matches';
 import { unwrap } from '../../../api/client';
@@ -28,7 +28,7 @@ import { ProfileSheet } from '../ProfileSheet';
 import { MATCHES_KEY } from '../ChatsScreen';
 import { MatchesScreen } from './MatchesScreen';
 
-type SheetName = 'edit' | 'interests' | 'photos' | 'prefs' | 'privacy' | 'blocked' | null;
+type SheetName = 'edit' | 'interests' | 'photos' | 'prefs' | 'privacy' | 'blocked' | 'password' | null;
 
 interface Props {
   /** Called when user taps Chat on a match — parent navigates to chat thread. */
@@ -190,8 +190,13 @@ export const MyProfileScreen: React.FC<Props> = ({ onOpenChat }) => {
         <View style={styles.list}>
           <ListRow title="Edit profile" subtitle="Name, bio, gender, birthday" onPress={() => setSheet('edit')} />
           <ListRow title="Privacy" subtitle="Visibility, age, distance" onPress={() => setSheet('privacy')} />
-          <ListRow title="Blocked people" onPress={() => setSheet('blocked')} />
-          <ListRow title="Terms & Conditions" onPress={() => setLegal('terms')} />
+           <ListRow title="Blocked people" onPress={() => setSheet('blocked')} />
+           <ListRow
+             title={me.hasPassword ? 'Update password' : 'Set password'}
+             subtitle={me.hasPassword ? 'Change your email sign-in password' : 'Add email sign-in to your account'}
+             onPress={() => setSheet('password')}
+           />
+           <ListRow title="Terms & Conditions" onPress={() => setLegal('terms')} />
           <ListRow title="Privacy Policy" onPress={() => setLegal('privacy')} last />
         </View>
       </GlassCard>
@@ -210,6 +215,7 @@ export const MyProfileScreen: React.FC<Props> = ({ onOpenChat }) => {
       <FiltersSheet visible={sheet === 'prefs'} onClose={close} onSaved={deck.reset} />
       <PrivacySheet visible={sheet === 'privacy'} onClose={close} />
       <BlockedSheet visible={sheet === 'blocked'} onClose={close} />
+      <PasswordSheet visible={sheet === 'password'} hasPassword={!!me.hasPassword} onClose={close} onSaved={refreshMe} />
       <LegalSheet kind={legal} onClose={() => setLegal(null)} />
 
       {/* Match profile viewer */}
@@ -218,6 +224,7 @@ export const MyProfileScreen: React.FC<Props> = ({ onOpenChat }) => {
           visible={!!viewedMatch}
           userId={viewedMatch.matched_user.user_id}
           matchId={viewedMatch.match_id}
+          chatId={viewedMatch.chat_id}
           onClose={() => setViewedMatch(null)}
           onOpenChat={match => {
             setViewedMatch(null);

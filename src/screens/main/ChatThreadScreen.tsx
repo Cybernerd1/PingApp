@@ -327,6 +327,7 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
           visible={profileOpen}
           userId={chat.userId}
           matchId={chat.matchId}
+          chatId={chat.chatId}
           onClose={() => setProfileOpen(false)}
           onSafetyAction={kind => {
             if (kind !== 'reported') onBack();

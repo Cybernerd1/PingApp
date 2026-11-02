@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
 import { Radius, Typography } from '../../theme/typography';
-import { ArrowLeft, ChatIcon, Chip, Close, Heart, IconButton, More } from '../../ui';
+import { ArrowLeft, ChatIcon, Chip, Close, Heart, IconButton, More, PillButton } from '../../ui';
 import { profileApi } from '../../api/profile';
 import { unwrap } from '../../api/client';
 import { DiscoverCandidate, MatchItem, SwipeAction, UserProfile } from '../../api/types';
-import { interactionsApi } from '../../api/interactions';
 import { matchesApi } from '../../api/matches';
-import { distanceLabel } from './DeckContext';
+import { distanceLabel, useDeck } from './DeckContext';
 import { SafetySheet } from './SafetySheet';
 
 const { width: W } = Dimensions.get('window');
@@ -38,6 +37,7 @@ interface Props {
   /** Called after block / unmatch so the parent can leave the chat etc. */
   onSafetyAction?: (kind: 'blocked' | 'reported' | 'unmatched') => void;
   matchId?: string | null;
+  chatId?: string | null;
   /** Called when user taps the chat button (only shown when already matched). */
   onOpenChat?: (match: MatchItem) => void;
 }
@@ -52,9 +52,9 @@ export const ProfileSheet: React.FC<Props> = props => (
   </Modal>
 );
 
-const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId, onOpenChat }) => {
+const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, onLike, onPass, onSafetyAction, matchId, chatId, onOpenChat }) => {
   const insets = useSafeAreaInsets();
-  const qc = useQueryClient();
+  const deck = useDeck();
   const id = candidate?.user_id ?? userId ?? null;
   const [menu, setMenu] = useState(false);
   const [page, setPage] = useState(0);
@@ -74,26 +74,15 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
   });
 
   const existingMatch = matches.data?.find(item => item.matched_user.user_id === id);
+  const existingChatId = existingMatch?.chat_id ?? chatId ?? null;
   const activeMatchId = matchId ?? existingMatch?.match_id ?? null;
   const actionCandidate = candidate ?? (remote.data ? toCandidate(remote.data) : null);
   const notificationAction = useMutation({
-    mutationFn: async (action: SwipeAction) => interactionsApi.swipe({ user_id: actionCandidate!.user_id, action }),
+    mutationFn: async (action: SwipeAction) => deck.swipe(actionCandidate!, action),
     onMutate: () => setActionError(null),
     onSuccess: result => {
-      if (result.status === 'error') {
-        // A like notification can outlive the profile. Treat definitive server
-        // rejections as a silent no-op rather than crashing or restoring a card.
-        if ([403, 404, 409, 410].includes(result.httpStatus ?? 0)) {
-          onClose();
-        } else {
-          setActionError(result.message);
-        }
-        return;
-      }
-      qc.invalidateQueries({ queryKey: ['matches'] });
-      qc.invalidateQueries({ queryKey: ['conversations'] });
-      qc.invalidateQueries({ queryKey: ['feed'] });
-      onClose();
+      if (result === 'retry') setActionError('Couldn’t save that action. Check your connection and try again.');
+      else onClose();
     },
   });
 
@@ -102,7 +91,7 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
   const bio = candidate?.bio ?? remote.data?.bio ?? null;
   const interests = candidate?.interests ?? remote.data?.interests ?? [];
   const photos = (candidate?.photos ?? remote.data?.photos ?? []).map(p => p.photo_url);
-  const showActions = !activeMatchId && (!!onLike || !!onPass || (!candidate && !!actionCandidate && !matches.isLoading));
+  const showActions = !activeMatchId && (candidate ? !!onLike || !!onPass : matches.isSuccess && !!actionCandidate);
 
   return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -162,6 +151,12 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
                   </View>
                 </>
               ) : null}
+              {!candidate && matches.isError ? (
+                <View style={styles.matchRetry}>
+                  <Text style={styles.err}>Couldn’t check whether you’re already matched.</Text>
+                  <PillButton title="Try again" variant="glass" onPress={() => matches.refetch()} />
+                </View>
+              ) : null}
             </View>
           </ScrollView>
         )}
@@ -209,9 +204,9 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
               style={({ pressed }) => [styles.chatBtn, pressed && styles.chatBtnPressed]}
               onPress={() => {
                 onClose();
-                onOpenChat({
-                   match_id: activeMatchId,
-                  chat_id: null,
+                onOpenChat(existingMatch ?? {
+                  match_id: activeMatchId,
+                  chat_id: existingChatId,
                   matched_at: '',
                   has_conversation: true,
                   last_message: null,
@@ -237,10 +232,11 @@ const ProfileContent: React.FC<Props> = ({ candidate, userId, visible, onClose, 
             onClose={() => setMenu(false)}
             userId={id}
             name={name}
-             matchId={activeMatchId}
+            matchId={activeMatchId}
             onDone={kind => {
               setMenu(false);
               onSafetyAction?.(kind);
+              if (kind !== 'reported' && id) deck.remove(id);
               if (kind !== 'reported') onClose();
             }}
           />
@@ -274,6 +270,7 @@ const styles = StyleSheet.create({
   topBar: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between' },
   actions: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 28 },
   actionError: { position: 'absolute', left: 24, right: 24, ...Typography.caption, color: Colors.danger, textAlign: 'center' },
+  matchRetry: { alignItems: 'center', marginTop: 24, gap: 10 },
   // Chat CTA
   chatBar: {
     position: 'absolute',
