@@ -1,0 +1,22 @@
+diff --git a/node_modules/react-native-keyboard-controller/android/build.gradle b/node_modules/react-native-keyboard-controller/android/build.gradle
+--- a/node_modules/react-native-keyboard-controller/android/build.gradle
++++ b/node_modules/react-native-keyboard-controller/android/build.gradle
+@@ -76,14 +76,18 @@ android {
+           'src/fabric',
+           'build/generated/source/codegen/java'
+         ]
++        kotlin.srcDirs += ['src/fabric']
+       } else {
+         java.srcDirs += ['src/paper']
++        kotlin.srcDirs += ['src/paper']
+       }
+ 
+       if (project.ext.shouldUseBaseReactPackage()) {
+         java.srcDirs += ['src/base']
++        kotlin.srcDirs += ['src/base']
+       } else {
+         java.srcDirs += ['src/turbo']
++        kotlin.srcDirs += ['src/turbo']
+       }
+     }
+   }
