@@ -1,4 +1,4 @@
-package com.ping
+package com.cybernerd.ping
 
 import android.os.Bundle
 import com.facebook.react.ReactActivity

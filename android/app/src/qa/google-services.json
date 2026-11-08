@@ -7,6 +7,93 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:0c489fccda31ed6b690db3",
+        "android_client_info": {
+          "package_name": "com.cybernerd.ping"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:d541f9cbd48e29ec690db3",
+        "android_client_info": {
+          "package_name": "com.cybernerd.ping.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:8784443d0c85fbcc690db3",
+        "android_client_info": {
+          "package_name": "com.cybernerd.ping.qa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:510915224906:android:f9e72bd927160875690db3",
         "android_client_info": {
           "package_name": "com.ping"
