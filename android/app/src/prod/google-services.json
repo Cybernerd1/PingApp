@@ -14,6 +14,88 @@
       },
       "oauth_client": [
         {
+          "client_id": "510915224906-p2r0fkk7u5700otilkq1vvr9dp0nmj5u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cybernerd.ping",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:d541f9cbd48e29ec690db3",
+        "android_client_info": {
+          "package_name": "com.cybernerd.ping.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-kits6ovp5ei8ocf7egul09bp120682c2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cybernerd.ping.dev",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGyX2r2hr-IdZ6KsISnO6AMs2k1zN1TLQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "510915224906-7vqraihhfncm56e2jdihtq1g7tiau5so.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:510915224906:android:8784443d0c85fbcc690db3",
+        "android_client_info": {
+          "package_name": "com.cybernerd.ping.qa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "510915224906-0do7c83qrgg2drvd0rstsqccgoodqk4l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.cybernerd.ping.qa",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "510915224906-emv3jvqb29nvjv4r2bbsmi9qg9c15hb4.apps.googleusercontent.com",
           "client_type": 3
         }
