@@ -40,11 +40,12 @@ export const ChatThreadScreen: React.FC<{ chat: OpenChat; onBack: () => void }> 
   const [uploading, setUploading] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [readByThem, setReadByThem] = useState(false);
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTypingSent = useRef(0);
   const insets = useSafeAreaInsets();
+  // Map of optimistic message ID → server message ID for dedup
+  const optimisticIdMap = useRef<Map<string, string>>(new Map());
  
-
 const kbVisible = useKeyboardState(s => s.isVisible);
 const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
 
@@ -53,22 +54,54 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
     queryFn: async () => unwrap(await chatsApi.getMessages(chat.chatId)).messages,
   });
 
+  // Track last known message ID for catch-up fetch on reconnect
+  const lastMessageIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (history.data && history.data.length > 0) {
+      // Messages are chronological (oldest first), so last is newest
+      lastMessageIdRef.current = history.data[history.data.length - 1].message_id;
+    }
+  }, [history.data]);
+
   // Join room, listen for events.
   useEffect(() => {
     realtime.joinChat(chat.chatId);
     realtime.markRead(chat.chatId);
     const offs = [
-      realtime.on('connection', ({ connected: c }) => setConnected(c)),
+      realtime.on('connection', ({ connected: c }) => {
+        setConnected(c);
+        // On reconnect, fetch recent messages to catch up on any missed during disconnect
+        if (c && lastMessageIdRef.current) {
+          chatsApi.getMessages(chat.chatId, 50, 0).then(res => {
+            if (res.status === 'success' && res.data.messages) {
+              setLive(prev => {
+                const existingIds = new Set(prev.map(m => m.message_id));
+                const newMsgs = res.data.messages.filter(m => !existingIds.has(m.message_id));
+                return [...prev, ...newMsgs];
+              });
+            }
+          });
+        }
+      }),
       realtime.on('new_message', ({ message }) => {
         if (message.chat_id !== chat.chatId) return;
         setLive(prev => {
-          // Replace my optimistic copy if this is its echo.
-          const idx = prev.findIndex(m => m.pending && m.sender_id === message.sender_id && m.content === message.content);
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = message;
-            return copy;
+          // If this is our own message echoed back from server, replace the optimistic copy
+          // by matching the optimistic ID we tracked for this chat
+          if (message.sender_id === me.user_id) {
+            for (const [optimisticId, trackedChatId] of optimisticIdMap.current.entries()) {
+              if (trackedChatId === chat.chatId) {
+                const idx = prev.findIndex(m => m.message_id === optimisticId);
+                if (idx >= 0) {
+                  const copy = [...prev];
+                  copy[idx] = message;
+                  optimisticIdMap.current.delete(optimisticId);
+                  return copy;
+                }
+              }
+            }
           }
+          // For messages from others, dedup by message_id
           if (prev.some(m => m.message_id === message.message_id)) return prev;
           return [...prev, message];
         });
@@ -137,10 +170,11 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
   };
 
   const pushOptimistic = (content: string, type: ChatMessage['message_type'], mediaUrl?: string) => {
+    const optimisticId = `local-${crypto.randomUUID()}`;
     setLive(prev => [
       ...prev,
       {
-        message_id: `local-${Date.now()}`,
+        message_id: optimisticId,
         chat_id: chat.chatId,
         sender_id: me.user_id,
         content,
@@ -151,6 +185,7 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
         pending: true,
       },
     ]);
+    return optimisticId;
   };
 
   const send = () => {
@@ -162,7 +197,9 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
       realtime.connect();
       return;
     }
-    pushOptimistic(body, 'text');
+    const optimisticId = pushOptimistic(body, 'text');
+    // Track this optimistic ID for dedup when server echoes back
+    optimisticIdMap.current.set(optimisticId, chat.chatId);
     setReadByThem(false);
     setText('');
     realtime.stopTyping(chat.chatId);
@@ -183,7 +220,8 @@ const composerPadBottom = kbVisible ? 4 : insets.bottom + 4;
       setError('Not connected — photo uploaded but not sent. Try again.');
       return;
     }
-    pushOptimistic('', 'image', res.data.media_url);
+    const optimisticId = pushOptimistic('', 'image', res.data.media_url);
+    optimisticIdMap.current.set(optimisticId, chat.chatId);
   };
 
   const renderItem = ({ item, index }: { item: ChatMessage; index: number }) => {

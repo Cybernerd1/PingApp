@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { ActivityIndicator, Permission, PermissionsAndroid, Platform, StatusBar, StyleSheet, Text } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,7 +14,6 @@ import {
 } from './src/native/fcm';
 import { MainShell } from './src/screens/main/MainShell';
 import { SessionProvider } from './src/session/SessionContext';
-import { GradientBackground, PillButton } from './src/ui';
 import {
   GoogleIdentity,
   OnboardingStep,
@@ -28,41 +27,13 @@ import { clearStoredNotifications } from './src/notifications/NotificationsConte
 import { UserProfile } from './src/api/types';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
 
-const FLIRTY_LINES = [
-  'Searching dates for you… 💘',
-  'Finding someone worth swiping for… ✨',
-  'Warming up the sparks… 🔥',
-  'Your next favourite person is loading… 💜',
-  'Polishing your perfect match… 😉',
-];
-
-const FlirtyLoader: React.FC = () => {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI(n => (n + 1) % FLIRTY_LINES.length), 2500);
-    return () => clearInterval(t);
-  }, []);
-  return <Text style={styles.offlineText}>{FLIRTY_LINES[i]}</Text>;
-};
-
-// ─── App Step State Machine (v1) ──────────────────────────────────────────────
-// splash     → animated brand splash, then resolveSession()
-// welcome    → "Love is One Swipe Away" + Google sign-in
-// onboarding → Gender → Basics → Interests → Photos → Preferences (resumable)
-// main       → Home · Nearby · Chats · My Fans · Profile (all on /api/v1)
-// offline    → tokens exist but the server is unreachable (Render cold start)
-export type AppStep = 'splash' | 'welcome' | 'onboarding' | 'main' | 'offline';
-
-// Register background FCM handler immediately on app boot
-// setupFCMBackgroundHandler();
+export type AppStep = 'splash' | 'welcome' | 'onboarding' | 'main';
 
 function App(): React.JSX.Element {
   const [currentStep, setCurrentStep] = useState<AppStep>('splash');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [identity, setIdentity] = useState<GoogleIdentity | null>(null);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>('gender');
-  const [offlineMessage, setOfflineMessage] = useState('');
-  const [retrying, setRetrying] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [toast, setToast] = useState<ToastConfig | null>(null);
   const [mainToast, setMainToast] = useState<ToastConfig | null>(null);
@@ -108,10 +79,6 @@ function App(): React.JSX.Element {
         setProfile(null);
         setCurrentStep('welcome');
         return;
-      case 'offline':
-        setOfflineMessage(state.message);
-        setCurrentStep('offline');
-        return;
       case 'onboarding':
         setProfile(state.profile);
         setIdentity(state.identity);
@@ -124,7 +91,7 @@ function App(): React.JSX.Element {
         setMainToast(
           opts?.welcomeBack
             ? {
-                title: `Welcome back${state.profile.full_name ? `, ${state.profile.full_name.split(' ')[0]}` : ''}!`,
+                title: `Welcome back${state.profile?.full_name ? `, ${state.profile.full_name.split(' ')[0]}` : ''}!`,
                 message: 'Ready to meet some amazing people nearby?',
                 icon: '💜',
               }
@@ -145,18 +112,11 @@ function App(): React.JSX.Element {
     }
   };
 
-  const handleRetry = async () => {
-    setRetrying(true);
-    try {
-      applySession(await resolveSession());
-    } finally {
-      setRetrying(false);
-    }
-  };
-
   const handleOnboardingComplete = (p: UserProfile | null) => {
     if (!p) {
-      handleRetry();
+      // handleRetry was removed; fall back to welcome so the user can sign in again.
+      setCurrentStep('welcome');
+      setToast({ title: 'Something went wrong', message: 'Please sign in again.', icon: '⚠️' });
       return;
     }
     setProfile(p);
@@ -197,13 +157,11 @@ function App(): React.JSX.Element {
 
         {currentStep === 'splash' && <SplashScreen onComplete={handleSplashComplete} />}
 
+        {/* Loading indicator during session resolution */}
         {currentStep === 'splash' && resolving && (
-          <GradientBackground>
-            <SafeAreaView style={styles.offline}>
-              <ActivityIndicator size="large" color={Colors.coral} />
-              <FlirtyLoader />
-            </SafeAreaView>
-          </GradientBackground>
+          <SafeAreaView style={styles.resolving}>
+            <ActivityIndicator size="large" color={Colors.coral} />
+          </SafeAreaView>
         )}
 
         {currentStep === 'welcome' && <WelcomeScreen onSignedIn={state => applySession(state, { welcomeBack: true })} />}
@@ -216,17 +174,6 @@ function App(): React.JSX.Element {
             onComplete={handleOnboardingComplete}
             onExit={handleLogout}
           />
-        )}
-
-        {currentStep === 'offline' && (
-          <GradientBackground>
-            <SafeAreaView style={styles.offline}>
-              <Text style={styles.offlineTitle}>Can’t reach Ping</Text>
-              <Text style={styles.offlineText}>{offlineMessage}</Text>
-              <PillButton title="Try again" onPress={handleRetry} loading={retrying} />
-              <PillButton title="Sign out" variant="ghost" onPress={handleLogout} style={styles.offlineSignOut} />
-            </SafeAreaView>
-          </GradientBackground>
         )}
 
         {currentStep === 'main' && profile && (
@@ -243,10 +190,7 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.cream },
   flex: { flex: 1 },
-  offline: { flex: 1, justifyContent: 'center', paddingHorizontal: 24, gap: 12 },
-  offlineTitle: { ...Typography.title, color: Colors.ink },
-  offlineText: { ...Typography.body, color: Colors.mute, marginBottom: 12 },
-  offlineSignOut: { marginTop: 4 },
+  resolving: { ...StyleSheet.absoluteFillObject, justifyContent: 'center', alignItems: 'center' },
 });
 
 export default App;

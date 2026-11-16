@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Session orchestration for the v1 API.
  *
  *  signInWithGoogle()  → Google account picker → POST /auth/google/callback → tokens → resolveSession()
@@ -36,9 +36,7 @@ export interface GoogleIdentity {
 export type SessionState =
   | { status: 'signedOut' }
   | { status: 'onboarding'; step: OnboardingStep; profile: UserProfile | null; identity: GoogleIdentity | null }
-  | { status: 'ready'; profile: UserProfile; identity: GoogleIdentity | null }
-  /** Server unreachable (cold start / offline) but we do hold tokens. */
-  | { status: 'offline'; message: string };
+  | { status: 'ready'; profile: UserProfile; identity: GoogleIdentity | null; offline?: boolean; offlineMessage?: string };
 
 let identity: GoogleIdentity | null = null;
 let configured = false;
@@ -182,13 +180,19 @@ export async function resolveSession(): Promise<SessionState> {
       if (apiError?.code === 'NOT_FOUND') {
         return { status: 'onboarding', step: 'gender', profile: null, identity };
       }
-      return { status: 'offline', message: apiError?.message ?? 'Couldn’t reach Ping.' };
+      // Network/timeout error — use cached profile if available so the user can browse offline.
+      if (cachedProfile) {
+        return { status: 'ready', profile: cachedProfile, identity, offline: true, offlineMessage: apiError?.message ?? "Couldn't reach Ping." };
+      }
+      // Clear tokens and return signedOut; user will be prompted to sign in once online.
+      await tokenStore.clear();
+      return { status: 'signedOut' };
     }
   }
 
   const step = await deriveStep(profile);
   if (step) return { status: 'onboarding', step, profile, identity };
-  return { status: 'ready', profile, identity };
+  return { status: 'ready', profile, identity, offline: false };
 }
 
 async function deriveStep(p: UserProfile): Promise<OnboardingStep | null> {
